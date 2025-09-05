@@ -1,0 +1,19 @@
+.env
+.env.*
+.devenv*
+.direnv
+.pre-commit-config.yaml
+devenv.local.nix
+target
+cloud.devenv.toml
+TODO
+
+# Terraform
+*.tfvars
+*.tfstate
+*.tfstate.backup
+.terraform
+.terraform.lock.hcl
+
+/runner/macos/runner-vm
+/runner/macos/.tart

@@ -1,0 +1,43 @@
+{
+  "app": {
+    "elm": {
+      "development": { "debugger": true },
+      "production": { "debugger": false }
+    },
+    "env": ["BASE_URL", "OAUTH_CLIENT_ID", "OAUTH_AUDIENCE"],
+    "html": {
+      "attributes": {
+        "html": { "lang": "en" },
+        "head": {}
+      },
+      "title": "Devenv Cloud",
+      "meta": [
+        { "charset": "UTF-8" },
+        { "http-equiv": "X-UA-Compatible", "content": "IE=edge" },
+        {
+          "name": "viewport",
+          "content": "width=device-width, initial-scale=1.0"
+        }
+      ],
+      "link": [
+        { "rel": "icon", "type": "image/x-icon", "href": "/favicon.svg" },
+        {
+          "rel": "stylesheet",
+          "href": "https://fonts.googleapis.com/css2?family=Mulish:wght@100;200;300;400;500;600;700;800;900;1000&display=swap"
+        }
+      ],
+      "script": [
+        {
+          "type": "text/javascript",
+          "innerHTML": "// Immediately set theme on page load to prevent flash\n(function() {\n  var savedTheme = localStorage.getItem('theme');\n  var theme = savedTheme ? JSON.parse(savedTheme) : \n      (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');\n  \n  if (theme === 'dark') {\n    document.documentElement.classList.add('dark');\n  }\n})();"
+        }
+      ]
+    },
+    "router": {
+      "useHashRouting": false
+    },
+    "proxy": {
+      "/api": "http://localhost:8080"
+    }
+  }
+}

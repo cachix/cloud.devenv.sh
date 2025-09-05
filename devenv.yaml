@@ -1,0 +1,23 @@
+inputs:
+  fenix:
+    url: github:nix-community/fenix
+    inputs:
+      nixpkgs:
+        follows: nixpkgs
+  mk-shell-bin:
+    url: github:rrbutani/nix-mk-shell-bin
+  nix:
+    url: github:domenkozar/nix/devenv-2.30
+  nix2container:
+    url: github:nlewo/nix2container
+    inputs:
+      nixpkgs:
+        follows: nixpkgs
+  nixpkgs:
+    url: github:cachix/devenv-nixpkgs/rolling
+allowUnfree: true
+imports:
+  - ./runner/
+  - ./nix/zitadel/service.nix
+  - ./nix/lightainer/
+secretspec: {}

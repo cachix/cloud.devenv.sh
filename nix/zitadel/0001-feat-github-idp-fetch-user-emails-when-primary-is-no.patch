@@ -1,0 +1,175 @@
+From 9101994f16af9dce4cb12d9a73f2bd51df8c1e83 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Domen=20Ko=C5=BEar?= <domen@cachix.org>
+Date: Mon, 24 Mar 2025 14:41:29 +0000
+Subject: [PATCH] feat(github-idp): fetch user emails when primary is not
+ available
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+This change improves the GitHub IDP integration by fetching user emails when the primary email is not included in the profile. It prioritizes verified and primary emails when selecting which to use.
+
+🤖 Generated with [Claude Code](https://claude.ai/code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ .../api/ui/login/external_provider_handler.go | 12 ++-
+ internal/idp/providers/github/github.go       | 94 ++++++++++++++++++-
+ 2 files changed, 100 insertions(+), 6 deletions(-)
+
+diff --git a/internal/api/ui/login/external_provider_handler.go b/internal/api/ui/login/external_provider_handler.go
+index 1c421a774..8fc733541 100644
+--- a/internal/api/ui/login/external_provider_handler.go
++++ b/internal/api/ui/login/external_provider_handler.go
+@@ -300,14 +300,22 @@ func (l *Login) handleExternalLoginCallback(w http.ResponseWriter, r *http.Reque
+ 			l.externalAuthCallbackFailed(w, r, authReq, nil, nil, err)
+ 			return
+ 		}
+-		session = oauth.NewSession(provider.Provider, data.Code, authReq.SelectedIDPConfigArgs)
++		// Use the GitHub-specific session that handles email fetching
++		session = &github.Session{
++			Session: oauth.NewSession(provider.Provider, data.Code, authReq.SelectedIDPConfigArgs),
++			Provider: provider,
++		}
+ 	case domain.IDPTypeGitHubEnterprise:
+ 		provider, err := l.githubEnterpriseProvider(r.Context(), identityProvider)
+ 		if err != nil {
+ 			l.externalAuthCallbackFailed(w, r, authReq, nil, nil, err)
+ 			return
+ 		}
+-		session = oauth.NewSession(provider.Provider, data.Code, authReq.SelectedIDPConfigArgs)
++		// Use the GitHub-specific session for GitHub Enterprise too
++		session = &github.Session{
++			Session: oauth.NewSession(provider.Provider, data.Code, authReq.SelectedIDPConfigArgs),
++			Provider: provider,
++		}
+ 	case domain.IDPTypeGitLab:
+ 		provider, err := l.gitlabProvider(r.Context(), identityProvider)
+ 		if err != nil {
+diff --git a/internal/idp/providers/github/github.go b/internal/idp/providers/github/github.go
+index 64e02941b..656469bee 100644
+--- a/internal/idp/providers/github/github.go
++++ b/internal/idp/providers/github/github.go
+@@ -1,11 +1,14 @@
+ package github
+ 
+ import (
++	"context"
++	"net/http"
+ 	"strconv"
+ 	"time"
+ 
+ 	"golang.org/x/oauth2"
+ 	"golang.org/x/text/language"
++	httphelper "github.com/zitadel/oidc/v3/pkg/http"
+ 
+ 	"github.com/zitadel/zitadel/internal/domain"
+ 	"github.com/zitadel/zitadel/internal/idp"
+@@ -13,10 +16,11 @@ import (
+ )
+ 
+ const (
+-	authURL    = "https://github.com/login/oauth/authorize"
+-	tokenURL   = "https://github.com/login/oauth/access_token"
+-	profileURL = "https://api.github.com/user"
+-	name       = "GitHub"
++	authURL     = "https://github.com/login/oauth/authorize"
++	tokenURL    = "https://github.com/login/oauth/access_token"
++	profileURL  = "https://api.github.com/user"
++	emailsURL   = "https://api.github.com/user/emails"
++	name        = "GitHub"
+ )
+ 
+ var _ idp.Provider = (*Provider)(nil)
+@@ -51,6 +55,88 @@ type Provider struct {
+ 	*oauth.Provider
+ }
+ 
++// Session is the GitHub-specific implementation of idp.Session
++type Session struct {
++	*oauth.Session
++	Provider *Provider
++}
++
++// FetchUser extends the OAuth session's FetchUser to handle GitHub's email fetching
++func (s *Session) FetchUser(ctx context.Context) (idp.User, error) {
++	user, err := s.Session.FetchUser(ctx)
++	if err != nil {
++		return nil, err
++	}
++	
++	githubUser, ok := user.(*User)
++	if !ok {
++		return user, nil
++	}
++	
++	// If email is empty, try to fetch it from the emails endpoint
++	if githubUser.Email == "" {
++		emails, err := s.fetchEmails(ctx)
++		if err == nil && len(emails) > 0 {
++			// Find the best email in a single pass
++			var verifiedEmail string
++			
++			for _, email := range emails {
++				// Priority 1: Primary and verified
++				if email.Primary && email.Verified {
++					githubUser.Email = domain.EmailAddress(email.Email)
++					break
++				}
++				
++				// Priority 2: First verified email
++				if email.Verified && verifiedEmail == "" {
++					verifiedEmail = email.Email
++				}
++			}
++			
++			// If no primary verified email found, use first verified or first available
++			if githubUser.Email == "" {
++				if verifiedEmail != "" {
++					githubUser.Email = domain.EmailAddress(verifiedEmail)
++				} else {
++					githubUser.Email = domain.EmailAddress(emails[0].Email)
++				}
++			}
++		}
++	}
++	
++	return githubUser, nil
++}
++
++// GitHubEmail represents an email from the GitHub API
++type GitHubEmail struct {
++	Email    string `json:"email"`
++	Primary  bool   `json:"primary"`
++	Verified bool   `json:"verified"`
++}
++
++// fetchEmails fetches the user's emails from GitHub
++func (s *Session) fetchEmails(ctx context.Context) ([]GitHubEmail, error) {
++	if s.Tokens == nil {
++		return nil, oauth.ErrCodeMissing
++	}
++	
++	req, err := http.NewRequestWithContext(ctx, "GET", emailsURL, nil)
++	if err != nil {
++		return nil, err
++	}
++	
++	// Make sure we use the correct Authorization header format
++	req.Header.Set("Authorization", s.Tokens.TokenType+" "+s.Tokens.AccessToken)
++	req.Header.Set("Accept", "application/vnd.github.v3+json") // Use GitHub's recommended API version
++	
++	var emails []GitHubEmail
++	if err := httphelper.HttpRequest(s.Provider.RelyingParty.HttpClient(), req, &emails); err != nil {
++		return nil, err
++	}
++	
++	return emails, nil
++}
++
+ func newConfig(clientID, secret, callbackURL, authURL, tokenURL string, scopes []string) *oauth2.Config {
+ 	c := &oauth2.Config{
+ 		ClientID:     clientID,
+-- 
+2.47.2
+

@@ -1,0 +1,77 @@
+[package]
+name = "devenv-runner"
+version = "0.1.0"
+edition = "2024"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+clap.workspace = true
+chrono.workspace = true
+color-eyre.workspace = true
+eyre.workspace = true
+futures-util.workspace = true
+gen_passphrase.workspace = true
+devenv-logger = { path = "../logger" }
+reqwest = { workspace = true, features = ["blocking"] }
+serde.workspace = true
+serde_json.workspace = true
+tempfile.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "sync"] }
+tokio-stream.workspace = true
+tokio-tungstenite.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+url.workspace = true
+uuid = { workspace = true, features = ["serde", "v7"] }
+sysinfo.workspace = true
+utoipa.workspace = true
+async-trait.workspace = true
+devenv.workspace = true
+gix.workspace = true
+signal-hook.workspace = true
+tonic.workspace = true
+tokio-vsock.workspace = true
+fs_extra.workspace = true
+backon.workspace = true
+
+# Platform-specific dependencies
+# These dependencies are conditionally compiled based on the target OS
+
+# macOS-specific dependencies
+[target.'cfg(target_os = "macos")'.dependencies]
+block2.workspace = true
+dispatch2.workspace = true
+libc.workspace = true
+objc2.workspace = true
+objc2-app-kit.workspace = true
+objc2-foundation.workspace = true
+objc2-virtualization.workspace = true
+
+# Linux-specific dependencies
+[target.'cfg(target_os = "linux")'.dependencies]
+cloud-hypervisor-client = { path = "../cloud-hypervisor-client" }
+libc.workspace = true
+nix = { workspace = true, features = ["user"] }
+pid1 = "0.1.4"
+
+[[bin]]
+name = "devenv-runner"
+path = "src/bin/runner.rs"
+
+[[bin]]
+name = "devenv-driver"
+path = "src/bin/driver.rs"
+
+[[bin]]
+name = "devenv-launcher"
+path = "src/bin/launcher.rs"
+
+# Static linking dependency still needed for other binaries
+[target.'cfg(target_os = "linux")'.build-dependencies]
+cc.workspace = true
+
+[features]
+default = ["client"]
+client = []

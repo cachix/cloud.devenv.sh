@@ -1,0 +1,26 @@
+name: "Test"
+
+on:
+  push:
+
+jobs:
+  tests:
+    strategy:
+      matrix:
+        include:
+          - os: [self-hosted, linux, X64]
+            allow-test-failure: false
+          - os: [self-hosted, macOS, ARM64]
+            allow-test-failure: true
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v5
+      - uses: cachix/install-nix-action@v31
+      - uses: cachix/cachix-action@v16
+        with:
+          name: devenv
+      - name: Run devenv test
+        run: nix run github:cachix/devenv/main#devenv -- test
+        continue-on-error: ${{ matrix.allow-test-failure }}

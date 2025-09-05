@@ -1,0 +1,317 @@
+@import "tailwindcss";
+
+@theme {
+  /* Font family configuration */
+  --font-family-sans:
+    Inter var, ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji",
+    "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+
+  /* Custom color palette */
+  --color-primary: #425c82;
+  --color-primary-dark: #425c82;
+
+  /* Gray palette */
+  --color-gray-50: #f9fafb;
+  --color-gray-100: #f3f4f6;
+  --color-gray-200: #e5e7eb;
+  --color-gray-400: #6b7280;
+  --color-gray-500: #4b5563;
+  --color-gray-600: #374151;
+  --color-gray-800: #1f2937;
+
+  /* Status colors */
+  --color-status-success: #10b981;
+  --color-status-error: #ef4444;
+
+  /* Surface colors */
+  --color-surface-light: #fbfbfb;
+  --color-surface-dark: #101010;
+
+  /* Dark mode colors */
+  --color-dark-bg: #101010;
+  --color-dark-surface: #101010;
+  --color-dark-border: #2a2a2a;
+  --color-dark-text: #fbfbfb;
+  --color-dark-text-secondary: #a0a0a0;
+}
+
+@plugin "@tailwindcss/forms";
+@plugin "@tailwindcss/typography";
+
+/* Use a .dark class to toggle dark mode instead of prefers-color-scheme */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Color Theme Mappings */
+@layer base {
+  /*
+    The default border color has changed to `currentcolor` in Tailwind CSS v4,
+    so we've added these compatibility styles to make sure everything still
+    looks the same as it did with Tailwind CSS v3.
+
+    If we ever want to remove these styles, we need to add an explicit border
+    color utility to any element that depends on these defaults.
+  */
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+
+  /* Set up automatic system theming */
+  /* TODO: this is not currently supported, ie the theme toggle needs a third system state */
+  :root {
+    color-scheme: light dark;
+  }
+
+  /* Tell the browser we're using the dark theme */
+  .dark {
+    color-scheme: dark;
+  }
+
+  /* Tell the browser we're using the light theme */
+  .light {
+    color-scheme: light;
+  }
+
+  /* Light mode component colors derived from palette */
+  .theme-map {
+    --primary-color: var(--color-primary);
+    --primary-hover: var(--color-primary-dark);
+    --secondary-color: var(--color-gray-500);
+    --background-color: #ffffff;
+    --surface-color: var(--color-gray-50);
+    --border-color: var(--color-gray-200);
+    --text-color: var(--color-gray-600);
+    --text-secondary: var(--color-gray-400);
+    --icon-color: var(--color-primary);
+    --list-border: var(--color-gray-200);
+    --label-bg: var(--color-gray-50);
+    --label-text: var(--color-gray-400);
+  }
+
+  /* Dark mode component colors */
+  .dark .theme-map {
+    --primary-color: var(--color-primary);
+    --primary-hover: var(--color-primary-dark);
+    --secondary-color: var(--color-gray-400);
+    --background-color: var(--color-dark-bg);
+    --surface-color: var(--color-surface-dark);
+    --border-color: var(--color-dark-border);
+    --text-color: var(--color-dark-text);
+    --text-secondary: var(--color-dark-text-secondary);
+    --icon-color: var(--color-primary);
+    --list-border: var(--color-dark-border);
+    --label-bg: var(--color-gray-800);
+    --label-text: var(--color-gray-400);
+  }
+}
+
+@layer utilities {
+  /* Apply styles during theme transitions */
+  html[data-theme-transition="true"] * {
+    /* Disable all transitions to switch themes instantly */
+    transition: none !important;
+  }
+
+  /* Custom utility classes that use our theme variables */
+}
+
+@layer utilities {
+  /* Logo switching based on dark mode */
+  .logo-light {
+    display: block;
+  }
+  .logo-dark {
+    display: none;
+  }
+
+  .dark .logo-light {
+    display: none;
+  }
+  .dark .logo-dark {
+    display: block;
+  }
+
+  /* ANSI Terminal Colors */
+}
+@layer components {
+  @keyframes blink {
+    50% {
+      opacity: 0;
+    }
+  }
+}
+
+@utility bg-theme {
+  background-color: var(--background-color);
+}
+@utility bg-surface {
+  background-color: var(--surface-color);
+}
+@utility text-theme {
+  color: var(--text-color);
+}
+@utility text-theme-secondary {
+  color: var(--text-secondary);
+}
+@utility border-theme {
+  border-color: var(--border-color);
+}
+
+/* Standard link styling across the application */
+@utility app-link {
+  @apply text-gray-800 dark:text-gray-300 hover:text-primary dark:hover:text-primary hover:underline transition-colors;
+}
+@utility term-black {
+  /* Foreground colors */
+  color: #000000;
+
+  /* Dark mode adjustments for better visibility */
+  .dark & {
+    color: #2e3436;
+  }
+}
+@utility term-red {
+  color: #cc0000;
+}
+@utility term-green {
+  color: #4e9a06;
+}
+@utility term-yellow {
+  color: #c4a000;
+}
+@utility term-blue {
+  color: #3465a4;
+}
+@utility term-magenta {
+  color: #75507b;
+}
+@utility term-cyan {
+  color: #06989a;
+}
+@utility term-white {
+  color: #d3d7cf;
+  .dark & {
+    color: #eeeeec;
+  }
+}
+@utility term-bright-black {
+  /* Bright foreground colors */
+  color: #555753;
+  .dark & {
+    color: #888a85;
+  }
+}
+@utility term-bright-red {
+  color: #ef2929;
+}
+@utility term-bright-green {
+  color: #8ae234;
+}
+@utility term-bright-yellow {
+  color: #fce94f;
+}
+@utility term-bright-blue {
+  color: #729fcf;
+}
+@utility term-bright-magenta {
+  color: #ad7fa8;
+}
+@utility term-bright-cyan {
+  color: #34e2e2;
+}
+@utility term-bright-white {
+  color: #eeeeec;
+  .dark & {
+    color: #ffffff;
+  }
+}
+@utility term-black-bg {
+  /* Background colors */
+  background-color: #000000;
+}
+@utility term-red-bg {
+  background-color: #cc0000;
+}
+@utility term-green-bg {
+  background-color: #4e9a06;
+}
+@utility term-yellow-bg {
+  background-color: #c4a000;
+}
+@utility term-blue-bg {
+  background-color: #3465a4;
+}
+@utility term-magenta-bg {
+  background-color: #75507b;
+}
+@utility term-cyan-bg {
+  background-color: #06989a;
+}
+@utility term-white-bg {
+  background-color: #d3d7cf;
+}
+@utility term-bright-black-bg {
+  /* Bright background colors */
+  background-color: #555753;
+}
+@utility term-bright-red-bg {
+  background-color: #ef2929;
+}
+@utility term-bright-green-bg {
+  background-color: #8ae234;
+}
+@utility term-bright-yellow-bg {
+  background-color: #fce94f;
+}
+@utility term-bright-blue-bg {
+  background-color: #729fcf;
+}
+@utility term-bright-magenta-bg {
+  background-color: #ad7fa8;
+}
+@utility term-bright-cyan-bg {
+  background-color: #34e2e2;
+}
+@utility term-bright-white-bg {
+  background-color: #eeeeec;
+}
+@utility term-bold {
+  /* Text decorations */
+  font-weight: bold;
+}
+@utility term-italic {
+  font-style: italic;
+}
+@utility term-underline {
+  text-decoration: underline;
+}
+@utility term-strike {
+  text-decoration: line-through;
+}
+@utility term-underline-strike {
+  text-decoration: underline line-through;
+}
+@utility term-blink {
+  animation: blink 1s step-start infinite;
+}
+@utility term-reverse {
+  filter: invert(1);
+}
+@utility dark {
+  /* Dark mode adjustments for better visibility */
+  & .term-black {
+    color: #2e3436;
+  }
+  & .term-white {
+    color: #eeeeec;
+  }
+  & .term-bright-black {
+    color: #888a85;
+  }
+  & .term-bright-white {
+    color: #ffffff;
+  }
+}

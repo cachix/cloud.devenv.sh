@@ -1,0 +1,60 @@
+[package]
+name = "devenv-backend"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "devenv-backend"
+path = "src/main.rs"
+
+[dependencies]
+devenv-runner = { path = "../runner", default-features = false }
+secretspec.workspace = true
+secretspec-derive.workspace = true
+axum.workspace = true
+axum-typed-websockets.workspace = true
+chrono.workspace = true
+clap.workspace = true
+color-eyre.workspace = true
+diesel.workspace = true
+diesel-async.workspace = true
+diesel_migrations.workspace = true
+digest.workspace = true
+eyre.workspace = true
+futures-util.workspace = true
+hex.workspace = true
+hmac.workspace = true
+jsonwebtoken.workspace = true
+octocrab.workspace = true
+posthog-rs.workspace = true
+rustls.workspace = true
+sentry.workspace = true
+sentry-tower.workspace = true
+sentry-tracing.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml.workspace = true
+sha2.workspace = true
+tempfile.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread"] }
+toml.workspace = true
+tower.workspace = true
+tower-http = { workspace = true, features = ["catch-panic", "trace"] }
+tracing.workspace = true
+tracing-subscriber.workspace = true
+tracing-error.workspace = true
+utoipa.workspace = true
+utoipa-axum.workspace = true
+uuid = { workspace = true, features = ["v7"] }
+zitadel.workspace = true
+prost.workspace = true
+pbjson-types = "0.7"
+url.workspace = true
+metrics-prometheus.workspace = true
+prometheus.workspace = true
+reqwest.workspace = true
+strum.workspace = true
+strum_macros.workspace = true
+async-trait.workspace = true
+secrecy = "0.10.3"
