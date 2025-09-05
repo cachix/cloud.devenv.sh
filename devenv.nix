@@ -171,9 +171,9 @@
       devenv-frontend = frontendPackage;
     };
 
-  containers."backend" = {
+  containers."backend" = config.lib.mkLightainer {
     name = "devenv-cloud-backend";
-    version = "latest";
+    tag = "latest";
     entrypoint = [
       "/bin/secretspec"
       "run"
@@ -184,22 +184,22 @@
     ];
     layers = [
       {
-        copyToRoot = [
-          (pkgs.buildEnv {
+        copyToRoot = (
+          pkgs.buildEnv {
             name = "devenv-backend";
             paths = [
               config.outputs.devenv-backend
               pkgs.secretspec
             ];
             pathsToLink = [ "/bin" ];
-          })
-        ];
+          }
+        );
         deps = config.outputs.devenv-backend.buildInputs;
       }
       {
         # Copy secretspec config
-        copyToRoot = [
-          (pkgs.buildEnv {
+        copyToRoot = (
+          pkgs.buildEnv {
             name = "backend-files";
             paths = [
               (pkgs.writeTextFile {
@@ -222,15 +222,15 @@
                 destination = "/etc/cloud.devenv.toml";
               })
             ];
-          })
-        ];
+          }
+        );
       }
     ];
   };
 
-  containers."frontend" = {
+  containers."frontend" = config.lib.mkLightainer {
     name = "devenv-cloud-frontend";
-    version = "latest";
+    tag = "latest";
     entrypoint = [
       "/bin/caddy"
       "run"
@@ -239,46 +239,44 @@
     ];
     layers = [
       {
-        copyToRoot = [
-          (pkgs.buildEnv {
-            name = "frontend-root";
-            paths = [
-              pkgs.caddy
-              (pkgs.runCommand "frontend-app" { } ''
-                mkdir -p $out/app
-                cp -r ${config.outputs.devenv-frontend}/* $out/app/
+        copyToRoot = pkgs.buildEnv {
+          name = "frontend-root";
+          paths = [
+            pkgs.caddy
+            (pkgs.runCommand "frontend-app" { } ''
+              mkdir -p $out/app
+              cp -r ${config.outputs.devenv-frontend}/* $out/app/
 
-                mkdir -p $out/etc/caddy
-                cat > $out/etc/caddy/Caddyfile << 'EOF'
-                :1234 {
-                  root * /app
-                  file_server
-                  try_files {path} /index.html
+              mkdir -p $out/etc/caddy
+              cat > $out/etc/caddy/Caddyfile << 'EOF'
+              :1234 {
+                root * /app
+                file_server
+                try_files {path} /index.html
 
-                  @api path /api*
-                  handle @api {
-                    header fly-replay app=devenv-cloud-backend
-                    respond "" 307
-                  }
+                @api path /api*
+                handle @api {
+                  header fly-replay app=devenv-cloud-backend
+                  respond "" 307
                 }
-                EOF
-              '')
-            ];
-            pathsToLink = [
-              "/bin"
-              "/app"
-              "/etc"
-            ];
-          })
-        ];
+              }
+              EOF
+            '')
+          ];
+          pathsToLink = [
+            "/bin"
+            "/app"
+            "/etc"
+          ];
+        };
       }
     ];
   };
 
-  containers."zitadel" = {
+  containers."zitadel" = config.lib.mkLightainer {
     name = "devenv-cloud-zitadel";
-    startupCommand = config.processes.zitadel.exec;
     version = "latest";
+    startupCommand = config.processes.zitadel.exec;
     layers = [
       {
         deps = [

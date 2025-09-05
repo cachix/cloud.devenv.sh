@@ -37,7 +37,11 @@
       uid = "1000";
       gid = "1000";
       homeDir = "/env";
-      bash = pkgs.bashInteractive;
+      bash = "${pkgs.bashInteractive}/bin/bash";
+
+      mkHome = pkgs.runCommand "devenv-home" { } ''
+        mkdir -p $out/env
+      '';
 
       mkTmp = (
         pkgs.runCommand "devenv-container-tmp" { } ''
@@ -95,6 +99,7 @@
           })
           mkEtc
           mkTmp
+          mkHome
         ];
 
         layers = builtins.foldl' (
