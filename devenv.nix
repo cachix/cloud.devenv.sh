@@ -275,7 +275,7 @@
 
   containers."zitadel" = config.lib.mkLightainer {
     name = "devenv-cloud-zitadel";
-    version = "latest";
+    tag = "latest";
     startupCommand = config.processes.zitadel.exec;
     layers = [
       {
