@@ -85,7 +85,6 @@ viewLanding signInMsg =
             , div [ class "flex flex-col sm:flex-row items-center justify-center gap-4" ]
                 [ button
                     [ class "inline-flex items-center gap-2 px-10 py-5 bg-linear-to-r from-gray-900 to-gray-800 dark:from-white dark:to-gray-100 text-white dark:text-gray-900 rounded-full hover:shadow-2xl hover:scale-105 transition-all duration-200 font-semibold text-xl cursor-pointer"
-                    , onClick signInMsg
                     ]
                     [ Icons.github [ Svg.Attributes.class "w-6 h-6 text-white dark:text-gray-900" ]
                     , text "Coming Soon →"
@@ -260,7 +259,6 @@ in {
                 [ text "Ready to simplify your CI?" ]
             , button
                 [ class "inline-flex items-center gap-2 px-10 py-5 bg-linear-to-r from-gray-900 to-gray-800 dark:from-white dark:to-gray-100 text-white dark:text-gray-900 rounded-full hover:shadow-2xl hover:scale-105 transition-all duration-200 font-semibold text-xl cursor-pointer"
-                , Html.Events.onClick signInMsg
                 ]
                 [ Icons.github [ Svg.Attributes.class "w-6 h-6 text-white dark:text-gray-900" ]
                 , text "Coming Soon"
