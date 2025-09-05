@@ -440,5 +440,3 @@ getUserAvatarUrl userInfo =
                     Maybe.withDefault "User" userInfo.given_name
             in
             "https://ui-avatars.com/api/?name=" ++ name ++ "&background=F7D15D&color=4A3E3D"
-
-

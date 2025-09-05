@@ -5,13 +5,15 @@ import Html.Attributes exposing (..)
 import Icons
 import Svg.Attributes
 
+
 discordUrl : String
-discordUrl = "https://discord.gg/naMgvexb6q"
+discordUrl =
+    "https://discord.gg/naMgvexb6q"
+
 
 view : Html msg
 view =
     let
-
         mk title links =
             div []
                 [ h2 [ class "font-semibold text-theme" ] [ text title ]
