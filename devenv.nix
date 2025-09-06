@@ -153,7 +153,11 @@
 
   tasks = {
     "frontend:elm2nix" = {
-      exec = "cd frontend && elm2nix convert > elm-srcs.nix && elm2nix snapshot";
+      exec = ''
+        cd frontend \
+          && elm2nix convert > elm-srcs.nix && elm2nix snapshot \
+          && pre-commit run nixfmt-rfc-style
+      '';
       execIfModified = [ "frontend/elm.json" ];
       before = [ "devenv:enterShell" ];
     };
