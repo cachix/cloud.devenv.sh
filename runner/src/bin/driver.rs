@@ -290,15 +290,7 @@ async fn run_devenv(job_config: &JobConfig, project_dir: &PathBuf) -> Result<()>
     let devenv_config = config::Config::load_from(&project_dir)
         .map_err(|e| eyre!("Failed to load devenv config: {:?}", e))?;
 
-    // Create temporary cloud.nix file
-    let temp_dir = tempfile::tempdir()?;
-    let cloud_nix_path = temp_dir.path().join("cloud.nix");
-    std::fs::write(&cloud_nix_path, CLOUD_NIX)?;
-
-    // TODO: Add cloud.nix to imports
-    // devenv_config
-    //     .imports
-    //     .push(cloud_nix_path.to_string_lossy().to_string());
+    // TODO: populate cloud.* options
 
     // Configure options
     let global_options = GlobalOptions::default();
