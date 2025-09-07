@@ -1,10 +1,30 @@
 import "./index.css";
+// Import highlight.js core and Nix language
 import hljs from "highlight.js/lib/core";
 import nix from "highlight.js/lib/languages/nix";
-import "highlight.js/styles/github-dark.css";
 
-// Register Nix language
+// Register Nix language since it's not in the common bundle
 hljs.registerLanguage("nix", nix);
+
+// Function to load highlight.js theme based on current theme
+function loadHighlightTheme(theme: string): void {
+  // Remove existing highlight.js theme link if any
+  const existingLink = document.getElementById("hljs-theme");
+  if (existingLink) {
+    existingLink.remove();
+  }
+
+  // Create new link element for the theme
+  const link = document.createElement("link");
+  link.id = "hljs-theme";
+  link.rel = "stylesheet";
+  // Use jsdelivr CDN which is more reliable
+  link.href =
+    theme === "dark"
+      ? "https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github-dark.min.css"
+      : "https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github.min.css";
+  document.head.appendChild(link);
+}
 
 // No longer needed - Elm handles scroll optimization internally
 
@@ -251,8 +271,14 @@ export const onReady = ({ app, env }: { app: any; env: any }): void => {
   // Create SSE connection manager instance
   const sseManager = new SSEConnectionManager();
 
+  // Load initial highlight.js theme based on current theme
+  const initialTheme = getTheme();
+  loadHighlightTheme(initialTheme);
+
   // Initialize syntax highlighting for any existing code blocks
-  hljs.highlightAll();
+  setTimeout(() => {
+    hljs.highlightAll();
+  }, 100); // Small delay to ensure theme CSS is loaded
 
   // Handle ports for SSE
   if (app.ports) {
@@ -499,16 +525,7 @@ export const onReady = ({ app, env }: { app: any; env: any }): void => {
             localStorage.setItem(data.key, JSON.stringify(data.value));
             break;
           case "SET_THEME":
-            // Don't send the event back to Elm if it matches the current theme
-            const currentTheme = document.documentElement.classList.contains(
-              "dark",
-            )
-              ? "dark"
-              : "light";
-            if (currentTheme !== data.theme) {
-              setTheme(data.theme);
-              // We won't send THEME_CHANGED back to Elm to avoid circular events
-            }
+            setTheme(data.theme);
             break;
           default:
             console.warn(`Unhandled outgoing port: "${tag}"`);
@@ -590,6 +607,14 @@ function applyTheme(theme: string): void {
     // Apply the theme class
     document.documentElement.classList.toggle("dark", theme === "dark");
     document.documentElement.classList.toggle("light", theme === "light");
+
+    // Load appropriate highlight.js theme
+    loadHighlightTheme(theme);
+
+    // Re-highlight all code blocks with new theme
+    setTimeout(() => {
+      hljs.highlightAll();
+    }, 100); // Small delay to ensure theme CSS is loaded
 
     // Remove the transition attribute after transitions complete
     setTimeout(() => {
