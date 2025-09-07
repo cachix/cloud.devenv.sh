@@ -129,7 +129,10 @@
   };
 
   git-hooks = {
-    excludes = [ "frontend/generated-api" ];
+    excludes = [
+      "frontend/generated-api"
+      "frontend/elm-srcs.nix"
+    ];
     hooks = {
       rustfmt.enable = true;
       nixfmt-rfc-style.enable = true;
@@ -154,9 +157,7 @@
   tasks = {
     "frontend:elm2nix" = {
       exec = ''
-        cd frontend \
-          && elm2nix convert > elm-srcs.nix && elm2nix snapshot \
-          && pre-commit run nixfmt-rfc-style
+        cd frontend && elm2nix convert > elm-srcs.nix && elm2nix snapshot
       '';
       execIfModified = [ "frontend/elm.json" ];
       before = [ "devenv:enterShell" ];
