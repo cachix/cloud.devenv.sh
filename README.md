@@ -78,7 +78,7 @@ in {
 - **Runner** (Rust) - WebSocket-connected service for executing commands in remote environments
 - **Logger** (Rust) - Centralized logging service for collecting and managing logs
 - **Database** (PostgreSQL 17) - Persistent storage with Diesel ORM migrations
-- **Authentication** ([Zitadel](https://zitadel.com) - Open Source OIDC SSO with OAuth2/LDAP/SAML2/OTP support
+- **Authentication** ([Zitadel](https://zitadel.com)) - Open Source OIDC SSO with OAuth2/LDAP/SAML2/OTP support
 
 ## Development
 
