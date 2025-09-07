@@ -1,5 +1,8 @@
 {
   "name": "devenv-cloud",
+  "dependencies": {
+    "highlight.js": "^11.9.0"
+  },
   "devDependencies": {
     "@tailwindcss/forms": "^0.5.3",
     "@tailwindcss/postcss": "^4.1.12",

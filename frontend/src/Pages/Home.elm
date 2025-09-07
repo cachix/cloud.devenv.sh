@@ -147,7 +147,7 @@ viewLanding signInMsg =
                             ]
                         ]
                     , pre [ class "p-6 lg:p-8 overflow-x-auto" ]
-                        [ code [ class "text-sm lg:text-base text-gray-800 dark:text-gray-200 font-mono leading-relaxed" ]
+                        [ code [ class "language-nix hljs text-sm lg:text-base text-gray-800 dark:text-gray-200 font-mono leading-relaxed" ]
                             [ text """{ pkgs, lib, config, ... }:
 let
   # https://devenv.sh/cloud/

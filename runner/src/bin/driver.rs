@@ -13,9 +13,6 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use tracing_subscriber::prelude::*;
 
-// Embed cloud.nix file into the binary
-const CLOUD_NIX: &str = include_str!("../cloud.nix");
-
 // Directory to clone the repository into
 #[cfg(target_os = "linux")]
 const PROJECT_DIR: &str = "/home/devenv";

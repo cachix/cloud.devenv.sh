@@ -1,4 +1,10 @@
 import "./index.css";
+import hljs from "highlight.js/lib/core";
+import nix from "highlight.js/lib/languages/nix";
+import "highlight.js/styles/github-dark.css";
+
+// Register Nix language
+hljs.registerLanguage("nix", nix);
 
 // No longer needed - Elm handles scroll optimization internally
 
@@ -244,6 +250,9 @@ export const flags = ({ env }: { env: any }): any => {
 export const onReady = ({ app, env }: { app: any; env: any }): void => {
   // Create SSE connection manager instance
   const sseManager = new SSEConnectionManager();
+
+  // Initialize syntax highlighting for any existing code blocks
+  hljs.highlightAll();
 
   // Handle ports for SSE
   if (app.ports) {
