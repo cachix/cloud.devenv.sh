@@ -3,7 +3,7 @@
 
 # Data source to read the actions admin PAT
 data "local_file" "actions_admin_pat" {
-  filename   = "${var.state_dir}/actions-admin.pat"
+  filename   = "${var.config.state_dir}/actions-admin.pat"
   depends_on = [local_file.actions_admin_pat_file]
 }
 
@@ -26,7 +26,7 @@ resource "null_resource" "cleanup_all_v2_targets" {
             "asc": true
           }
         }' \
-        "${var.insecure ? "http" : "https"}://${var.zitadel_domain}:${var.zitadel_port}/v2beta/actions/targets/search")
+        "${var.config.insecure ? "http" : "https"}://${var.config.zitadel_domain}:${var.config.zitadel_port}/v2beta/actions/targets/search")
       
       echo "Search response: $TARGETS_RESPONSE"
       
@@ -37,15 +37,15 @@ resource "null_resource" "cleanup_all_v2_targets" {
           DELETE_RESPONSE=$(curl -s -X DELETE \
             -H "Accept: application/json" \
             -H "Authorization: Bearer ${data.local_file.actions_admin_pat.content}" \
-            "${var.insecure ? "http" : "https"}://${var.zitadel_domain}:${var.zitadel_port}/v2beta/actions/targets/$TARGET_ID")
+            "${var.config.insecure ? "http" : "https"}://${var.config.zitadel_domain}:${var.config.zitadel_port}/v2beta/actions/targets/$TARGET_ID")
           echo "Delete response for $TARGET_ID: $DELETE_RESPONSE"
         fi
       done
       
       # Clean up local state files
-      rm -f "${var.state_dir}/webhook-target-id.txt"
-      rm -f "${var.state_dir}/actions-v2-config.json"
-      rm -f "${var.state_dir}/signing-key.txt"
+      rm -f "${var.config.state_dir}/webhook-target-id.txt"
+      rm -f "${var.config.state_dir}/actions-v2-config.json"
+      rm -f "${var.config.state_dir}/signing-key.txt"
       
       echo "Cleanup completed"
     EOT
@@ -68,28 +68,28 @@ resource "null_resource" "webhook_target" {
         -H "Content-Type: application/json" \
         -d '${jsonencode({
     name = "actions_webhook"
-    endpoint = "${var.base_url}/api/v1/zitadel/actions/webhook"
+    endpoint = "${var.config.base_url}/api/v1/zitadel/actions/webhook"
     timeout = "15s"
     restCall = {
       interruptOnError = false
     }
 })}' \
-        "${var.insecure ? "http" : "https"}://${var.zitadel_domain}:${var.zitadel_port}/v2beta/actions/targets")
+        "${var.config.insecure ? "http" : "https"}://${var.config.zitadel_domain}:${var.config.zitadel_port}/v2beta/actions/targets")
       
-      echo "$RESPONSE" > "${var.state_dir}/webhook-target-response.json"
+      echo "$RESPONSE" > "${var.config.state_dir}/webhook-target-response.json"
       
       TARGET_ID=$(echo "$RESPONSE" | jq -r '.id // empty')
       if [ -z "$TARGET_ID" ]; then
         echo "Failed to create webhook target: $RESPONSE" >&2
         exit 1
       fi
-      echo "$TARGET_ID" > "${var.state_dir}/webhook-target-id.txt"
+      echo "$TARGET_ID" > "${var.config.state_dir}/webhook-target-id.txt"
       
       # Extract and save the signing key
       SIGNING_KEY=$(echo "$RESPONSE" | jq -r '.signingKey // empty')
       if [ ! -z "$SIGNING_KEY" ]; then
-        echo "$SIGNING_KEY" > "${var.state_dir}/signing-key.txt"
-        echo "Signing key saved to ${var.state_dir}/signing-key.txt"
+        echo "$SIGNING_KEY" > "${var.config.state_dir}/signing-key.txt"
+        echo "Signing key saved to ${var.config.state_dir}/signing-key.txt"
       fi
     EOT
   }
@@ -116,10 +116,10 @@ resource "null_resource" "webhook_target" {
   ]
 
   triggers = {
-    endpoint    = "${var.base_url}/api/v1/zitadel/actions/webhook"
+    endpoint    = "${var.config.base_url}/api/v1/zitadel/actions/webhook"
     token       = data.local_file.actions_admin_pat.content
-    state_dir   = var.state_dir
-    zitadel_url = "${var.insecure ? "http" : "https"}://${var.zitadel_domain}:${var.zitadel_port}"
+    state_dir   = var.config.state_dir
+    zitadel_url = "${var.config.insecure ? "http" : "https"}://${var.config.zitadel_domain}:${var.config.zitadel_port}"
     cleanup_id  = null_resource.cleanup_all_v2_targets.id
   }
 }
@@ -132,12 +132,12 @@ resource "null_resource" "retrieve_identity_provider_intent_execution" {
       # Wait a moment for the target file to be written
       sleep 2
       
-      if [ ! -f "${var.state_dir}/webhook-target-id.txt" ]; then
+      if [ ! -f "${var.config.state_dir}/webhook-target-id.txt" ]; then
         echo "Error: Webhook target ID file not found after target creation" >&2
         exit 1
       fi
       
-      TARGET_ID=$(cat "${var.state_dir}/webhook-target-id.txt")
+      TARGET_ID=$(cat "${var.config.state_dir}/webhook-target-id.txt")
       if [ -z "$TARGET_ID" ]; then
         echo "Error: Webhook target ID is empty" >&2
         exit 1
@@ -156,9 +156,9 @@ resource "null_resource" "retrieve_identity_provider_intent_execution" {
           },
           \"targets\": [\"$TARGET_ID\"]
         }" \
-        "${var.insecure ? "http" : "https"}://${var.zitadel_domain}:${var.zitadel_port}/v2beta/actions/executions")
+        "${var.config.insecure ? "http" : "https"}://${var.config.zitadel_domain}:${var.config.zitadel_port}/v2beta/actions/executions")
       
-      echo "$RESPONSE" > "${var.state_dir}/retrieve-identity-provider-intent-execution-response.json"
+      echo "$RESPONSE" > "${var.config.state_dir}/retrieve-identity-provider-intent-execution-response.json"
       
       SET_DATE=$(echo "$RESPONSE" | jq -r '.setDate // empty')
       if [ -z "$SET_DATE" ]; then
@@ -174,8 +174,8 @@ resource "null_resource" "retrieve_identity_provider_intent_execution" {
   triggers = {
     target_id   = null_resource.webhook_target.id
     token       = data.local_file.actions_admin_pat.content
-    state_dir   = var.state_dir
-    zitadel_url = "${var.insecure ? "http" : "https"}://${var.zitadel_domain}:${var.zitadel_port}"
+    state_dir   = var.config.state_dir
+    zitadel_url = "${var.config.insecure ? "http" : "https"}://${var.config.zitadel_domain}:${var.config.zitadel_port}"
     method      = "/zitadel.user.v2.UserService/RetrieveIdentityProviderIntent"
   }
 }
@@ -188,12 +188,12 @@ resource "null_resource" "create_session_execution" {
       # Wait a moment for the target file to be written
       sleep 2
       
-      if [ ! -f "${var.state_dir}/webhook-target-id.txt" ]; then
+      if [ ! -f "${var.config.state_dir}/webhook-target-id.txt" ]; then
         echo "Error: Webhook target ID file not found after target creation" >&2
         exit 1
       fi
       
-      TARGET_ID=$(cat "${var.state_dir}/webhook-target-id.txt")
+      TARGET_ID=$(cat "${var.config.state_dir}/webhook-target-id.txt")
       if [ -z "$TARGET_ID" ]; then
         echo "Error: Webhook target ID is empty" >&2
         exit 1
@@ -212,9 +212,9 @@ resource "null_resource" "create_session_execution" {
           },
           \"targets\": [\"$TARGET_ID\"]
         }" \
-        "${var.insecure ? "http" : "https"}://${var.zitadel_domain}:${var.zitadel_port}/v2beta/actions/executions")
+        "${var.config.insecure ? "http" : "https"}://${var.config.zitadel_domain}:${var.config.zitadel_port}/v2beta/actions/executions")
       
-      echo "$RESPONSE" > "${var.state_dir}/create-session-execution-response.json"
+      echo "$RESPONSE" > "${var.config.state_dir}/create-session-execution-response.json"
       
       SET_DATE=$(echo "$RESPONSE" | jq -r '.setDate // empty')
       if [ -z "$SET_DATE" ]; then
@@ -230,8 +230,8 @@ resource "null_resource" "create_session_execution" {
   triggers = {
     target_id   = null_resource.webhook_target.id
     token       = data.local_file.actions_admin_pat.content
-    state_dir   = var.state_dir
-    zitadel_url = "${var.insecure ? "http" : "https"}://${var.zitadel_domain}:${var.zitadel_port}"
+    state_dir   = var.config.state_dir
+    zitadel_url = "${var.config.insecure ? "http" : "https"}://${var.config.zitadel_domain}:${var.config.zitadel_port}"
     method      = "/zitadel.session.v2.SessionService/CreateSession"
   }
 }
@@ -245,12 +245,12 @@ resource "null_resource" "preuserinfo_execution" {
       # Wait a moment for the target file to be written
       sleep 2
       
-      if [ ! -f "${var.state_dir}/webhook-target-id.txt" ]; then
+      if [ ! -f "${var.config.state_dir}/webhook-target-id.txt" ]; then
         echo "Error: Webhook target ID file not found after target creation" >&2
         exit 1
       fi
       
-      TARGET_ID=$(cat "${var.state_dir}/webhook-target-id.txt")
+      TARGET_ID=$(cat "${var.config.state_dir}/webhook-target-id.txt")
       if [ -z "$TARGET_ID" ]; then
         echo "Error: Webhook target ID is empty" >&2
         exit 1
@@ -269,9 +269,9 @@ resource "null_resource" "preuserinfo_execution" {
           },
           \"targets\": [\"$TARGET_ID\"]
         }" \
-        "${var.insecure ? "http" : "https"}://${var.zitadel_domain}:${var.zitadel_port}/v2beta/actions/executions")
+        "${var.config.insecure ? "http" : "https"}://${var.config.zitadel_domain}:${var.config.zitadel_port}/v2beta/actions/executions")
       
-      echo "$RESPONSE" > "${var.state_dir}/preuserinfo-execution-response.json"
+      echo "$RESPONSE" > "${var.config.state_dir}/preuserinfo-execution-response.json"
       
       SET_DATE=$(echo "$RESPONSE" | jq -r '.setDate // empty')
       if [ -z "$SET_DATE" ]; then
@@ -287,8 +287,8 @@ resource "null_resource" "preuserinfo_execution" {
   triggers = {
     target_id   = null_resource.webhook_target.id
     token       = data.local_file.actions_admin_pat.content
-    state_dir   = var.state_dir
-    zitadel_url = "${var.insecure ? "http" : "https"}://${var.zitadel_domain}:${var.zitadel_port}"
+    state_dir   = var.config.state_dir
+    zitadel_url = "${var.config.insecure ? "http" : "https"}://${var.config.zitadel_domain}:${var.config.zitadel_port}"
     function    = "preuserinfo"
   }
 }
@@ -296,10 +296,10 @@ resource "null_resource" "preuserinfo_execution" {
 # Save configuration for reference
 resource "local_file" "actions_v2_config" {
 
-  filename = "${var.state_dir}/actions-v2-config.json"
+  filename = "${var.config.state_dir}/actions-v2-config.json"
   content = jsonencode({
     created_at = timestamp()
-    endpoint = "${var.base_url}/api/v1/zitadel/actions/webhook"
+    endpoint = "${var.config.base_url}/api/v1/zitadel/actions/webhook"
     methods = {
       retrieve_identity_provider_intent = "/zitadel.user.v2.UserService/RetrieveIdentityProviderIntent"
       create_session                   = "/zitadel.session.v2.SessionService/CreateSession"
@@ -311,17 +311,3 @@ resource "local_file" "actions_v2_config" {
   depends_on = [null_resource.webhook_target]
 }
 
-# Outputs for Actions V2 configuration
-output "actions_v2_target_id" {
-  description = "The shared Actions v2 target ID"
-  value       = null_resource.webhook_target.id
-}
-
-output "actions_v2_execution_ids" {
-  description = "The Actions v2 execution IDs"
-  value = {
-    retrieve_identity_provider_intent = null_resource.retrieve_identity_provider_intent_execution.id
-    create_session                   = null_resource.create_session_execution.id
-    preuserinfo                     = null_resource.preuserinfo_execution.id
-  }
-}
