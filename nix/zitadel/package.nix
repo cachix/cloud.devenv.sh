@@ -117,7 +117,9 @@ buildGoModule rec {
   ];
 
   patches = [
+    # https://github.com/zitadel/zitadel/pull/10715
     ./0001-feat-github-idp-fetch-user-emails-when-primary-is-no.patch
+    # https://github.com/zitadel/zitadel/pull/10716
     ./0002-init-skip-creating-role-if-it-exists.patch
   ];
 
