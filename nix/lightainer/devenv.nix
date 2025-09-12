@@ -120,6 +120,15 @@
             uname = "root";
             gname = "root";
           }
+          {
+            path = mkHome;
+            regex = "/env";
+            mode = "0755";
+            uid = lib.toInt uid;
+            gid = lib.toInt gid;
+            uname = user;
+            gname = group;
+          }
         ];
 
         config = {
