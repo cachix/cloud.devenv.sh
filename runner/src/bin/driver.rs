@@ -11,6 +11,7 @@ use std::num::NonZeroU32;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use tokio_shutdown::Shutdown;
 use tracing_subscriber::prelude::*;
 
 // Directory to clone the repository into
@@ -297,12 +298,16 @@ async fn run_devenv(job_config: &JobConfig, project_dir: &PathBuf) -> Result<()>
         // TODO: Set up Cachix push options here
     }
 
+    // Create shutdown signal for coordinated shutdown
+    let shutdown = Shutdown::new();
+
     // Create DevenvOptions
     let options = DevenvOptions {
         config: devenv_config,
         global_options: Some(global_options),
         devenv_root: Some(project_dir.clone()),
         devenv_dotfile: None, // Default will be used (.devenv)
+        shutdown,
     };
 
     // Create and initialize Devenv instance

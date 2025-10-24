@@ -35,6 +35,7 @@ tonic.workspace = true
 tokio-vsock.workspace = true
 fs_extra.workspace = true
 backon.workspace = true
+tokio-shutdown.workspace = true
 
 # Platform-specific dependencies
 # These dependencies are conditionally compiled based on the target OS
