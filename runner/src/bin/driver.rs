@@ -1,5 +1,5 @@
 use color_eyre::eyre::{Result, WrapErr, eyre};
-use devenv::{Devenv, DevenvOptions, GlobalOptions, config};
+use devenv::{Config, Devenv, DevenvOptions, GlobalOptions};
 use devenv_runner::protocol::JobConfig;
 use devenv_runner::vsock::{self, VsockWriter};
 use gix::remote::fetch::Shallow;
@@ -285,7 +285,7 @@ async fn run_devenv(job_config: &JobConfig, project_dir: &PathBuf) -> Result<()>
     std::env::set_current_dir(&project_dir).wrap_err("Failed to change to project directory")?;
 
     // Load configuration from current directory
-    let devenv_config = config::Config::load_from(&project_dir)
+    let devenv_config = Config::load_from(&project_dir)
         .map_err(|e| eyre!("Failed to load devenv config: {:?}", e))?;
 
     // TODO: populate cloud.* options

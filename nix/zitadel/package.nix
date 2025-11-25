@@ -102,7 +102,7 @@ let
       protoc-gen-zitadel
     ];
     outputPath = ".artifacts";
-    hash = "sha256-SzgAMP6zrYgKNe0qiWwTxG8i+y6Jo8rPktIfPTEuMT8=";
+    hash = "sha256-CkXDJDFR1aB13nB0MDw3F46zdWTT8uWvsKQLnD8UztA=";
   };
 in
 buildGoModule rec {

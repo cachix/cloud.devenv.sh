@@ -16,7 +16,8 @@ let
       lockFile = ./Cargo.lock;
       outputHashes = {
         "axum-typed-websockets-0.6.0" = "sha256-uou03y7v6gtNDrt2Dcb0NcSHNfZqExWBfTYc4sx5MQY=";
-        "devenv-1.8.2" = "sha256-Oj4Tvk1Za5CqGxZ43IoGWBySgfN0/JK+rfb1Tmk59QQ=";
+        "devenv-1.11.0" = "sha256-fixos/lawsEMOxXROPxsEwgll06yUSyZjclhE8YK1Kk=";
+        "ser_nix-0.1.2" = "sha256-CO8jF9ffG1dIk3ehQ7QiNM74xwaNID8YpSlr8zHLDyY=";
         "zitadel-0.0.0-development" = "sha256-Ia2LYUi8VD30kx48pwtVAVN7ko7cOgC7okx6w4bQ1/0=";
       };
     };

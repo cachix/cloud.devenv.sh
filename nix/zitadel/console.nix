@@ -86,7 +86,7 @@ let
     workDir = "console";
     bufArgs = "../proto --include-imports --include-wkt";
     outputPath = "src/app/proto";
-    hash = "sha256-A4ZaVuWtg4XMWQOR7PVJNq5ojLk/kqQma6Gn39NrXQo=";
+    hash = "sha256-2wIOIbfl2kI51HoXrCqiTI3AVAArHadU8iPxQUojKyo=";
   };
 
   zitadelProtobufGenerated = generateProtobufCode {
