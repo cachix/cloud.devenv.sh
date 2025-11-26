@@ -1,6 +1,8 @@
 #[cfg(feature = "client")]
 pub mod client;
 #[cfg(feature = "client")]
+pub mod config;
+#[cfg(feature = "client")]
 pub mod job_manager;
 pub mod protocol;
 #[cfg(feature = "client")]

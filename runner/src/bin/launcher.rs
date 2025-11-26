@@ -1,9 +1,11 @@
 use color_eyre::eyre::Result;
+use devenv_runner::config::VmConfig;
 use devenv_runner::protocol::{JobConfig, Platform, VM};
 use devenv_runner::resource_manager::ResourceManager;
 use devenv_runner::vm_manager::{VmCompletionEvent, VmManager};
 use signal_hook::consts::signal::{SIGINT, SIGQUIT, SIGTERM};
 use signal_hook::iterator::Signals;
+use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use tracing_subscriber::prelude::*;
@@ -48,11 +50,25 @@ async fn main() -> Result<()> {
     // Create a resource manager for the launcher
     let resource_manager = Arc::new(ResourceManager::with_platform_defaults());
 
+    // Load VM runtime configuration from environment
+    let runner_config = VmConfig {
+        resources_dir: PathBuf::from(
+            std::env::var("RESOURCES_DIR").expect("RESOURCES_DIR environment variable must be set"),
+        ),
+        state_dir: PathBuf::from(
+            std::env::var("DEVENV_STATE").expect("DEVENV_STATE environment variable must be set"),
+        ),
+    };
+
     // Create VM completion channel
     let (completion_tx, mut completion_rx) = mpsc::channel::<VmCompletionEvent>(10);
 
     // Create VM manager - this will clean up old VM directories on Linux
-    let vm_manager = Arc::new(VmManager::new(completion_tx, resource_manager.clone()));
+    let vm_manager = Arc::new(VmManager::new(
+        completion_tx,
+        resource_manager.clone(),
+        runner_config,
+    ));
 
     // Create a sample job configuration
     let job_config = JobConfig {

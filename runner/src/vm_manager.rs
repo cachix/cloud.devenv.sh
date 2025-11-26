@@ -1,3 +1,4 @@
+use crate::config::VmConfig;
 use crate::protocol::{JobConfig, VM};
 use crate::resource_manager::ResourceManager;
 use crate::vm::VmExitStatus;
@@ -29,17 +30,21 @@ pub struct VmManager {
     completion_tx: mpsc::Sender<VmCompletionEvent>,
     // Resource manager for IP allocation (Linux only)
     resource_manager: Arc<ResourceManager>,
+    // VM configuration
+    vm_config: VmConfig,
 }
 
 impl VmManager {
     pub fn new(
         completion_tx: mpsc::Sender<VmCompletionEvent>,
         resource_manager: Arc<ResourceManager>,
+        vm_config: VmConfig,
     ) -> Self {
         Self {
             control_channels: Arc::new(RwLock::new(HashMap::new())),
             completion_tx,
             resource_manager,
+            vm_config,
         }
     }
 
@@ -64,6 +69,7 @@ impl VmManager {
         let completion_tx = self.completion_tx.clone();
         let control_channels = self.control_channels.clone();
         let resource_manager = self.resource_manager.clone();
+        let vm_cfg = self.vm_config.clone();
 
         // Launch VM in background - use dedicated thread on macOS for dispatch queues
         #[cfg(target_os = "macos")]
@@ -80,6 +86,7 @@ impl VmManager {
                         completion_tx,
                         control_channels,
                         resource_manager,
+                        vm_cfg,
                         control_rx,
                         log_sender,
                     )
@@ -98,6 +105,7 @@ impl VmManager {
                     completion_tx,
                     control_channels,
                     resource_manager,
+                    vm_cfg,
                     control_rx,
                     log_sender,
                 )
@@ -139,7 +147,7 @@ impl Drop for VmManager {
         #[cfg(target_os = "linux")]
         {
             tracing::info!("VmManager dropping, cleaning up VM template directories");
-            if let Err(e) = crate::vm_impl::linux::cleanup_vm_template() {
+            if let Err(e) = crate::vm_impl::linux::cleanup_vm_template(&self.vm_config.state_dir) {
                 tracing::warn!(
                     "Failed to cleanup VM template directories on shutdown: {}",
                     e
@@ -157,12 +165,14 @@ async fn vm_task_impl(
     completion_tx: mpsc::Sender<VmCompletionEvent>,
     control_channels: Arc<RwLock<HashMap<Uuid, mpsc::Sender<VmCommand>>>>,
     resource_manager: Arc<ResourceManager>,
+    config: VmConfig,
     mut control_rx: mpsc::Receiver<VmCommand>,
     log_sender: mpsc::Sender<String>,
 ) {
     // Create and start VM
     let vm_result = async {
-        let mut vm = crate::vm::create_vm(vm_config, job_id.to_string(), resource_manager).await?;
+        let mut vm =
+            crate::vm::create_vm(vm_config, job_id.to_string(), resource_manager, &config).await?;
 
         // Set job configuration (send to guest)
         vm.set_job_config(job_config, log_sender).await?;

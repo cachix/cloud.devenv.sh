@@ -1,3 +1,4 @@
+use crate::config::VmConfig as RunnerVmConfig;
 use crate::protocol::{JobConfig, VM};
 use crate::resource_manager::{IpGuard, ResourceGuard, ResourceManager};
 use crate::vm::Vm;
@@ -104,6 +105,7 @@ impl Vm for LinuxVm {
         vm_config: VM,
         id: String,
         resource_manager: Arc<ResourceManager>,
+        config: &RunnerVmConfig,
     ) -> Result<Self> {
         // Create a temporary directory for this VM (will be auto-cleaned on drop)
         let run_dir_temp =
@@ -117,18 +119,13 @@ impl Vm for LinuxVm {
             .await
             .map_err(|e| eyre::eyre!("Failed to allocate resources for VM {}: {:?}", id, e))?;
 
-        let resources_dir = PathBuf::from(
-            std::env::var("RESOURCES_DIR").expect("RESOURCES_DIR environment variable must be set"),
-        );
-
         let resources = VmResources {
-            kernel_path: resources_dir.join("vmlinux"),
-            initrd_path: resources_dir.join("initrd"),
+            kernel_path: config.resources_dir.join("vmlinux"),
+            initrd_path: config.resources_dir.join("initrd"),
         };
 
         // Create VM storage directory
-        let devenv_state = std::env::var("DEVENV_STATE").unwrap_or_else(|_| ".devenv".to_string());
-        let vm_storage_base = PathBuf::from(devenv_state).join("vms");
+        let vm_storage_base = config.state_dir.join("vms");
         create_dir_all(&vm_storage_base).wrap_err("Failed to create VM storage base directory")?;
 
         let vm_rootfs_dir = vm_storage_base.join(&id);
@@ -136,7 +133,7 @@ impl Vm for LinuxVm {
         let nix_store_dir = vm_rootfs_dir.join("nix").join("store");
 
         // Use rootfs directory from resources
-        let rootfs_dir = resources_dir.join("rootfs");
+        let rootfs_dir = config.resources_dir.join("rootfs");
 
         tracing::info!("Preparing VM rootfs directory {}", vm_rootfs_dir.display());
 
@@ -148,7 +145,7 @@ impl Vm for LinuxVm {
             .wrap_err("Failed to copy rootfs directory to VM rootfs dir")?;
 
         // Get the path to the pre-built nix store image
-        let nix_store_image_path = resources_dir.join("nix-store-image");
+        let nix_store_image_path = config.resources_dir.join("nix-store-image");
         let nix_store_source = nix_store_image_path.join("nix/store");
 
         // Create the nix directory structure
@@ -500,10 +497,8 @@ impl Vm for LinuxVm {
 }
 
 /// Cleanup VM template directories on startup
-pub fn cleanup_vm_template() -> Result<()> {
-    let devenv_state =
-        std::env::var("DEVENV_STATE").unwrap_or_else(|_| ".devenv/state".to_string());
-    let vm_storage_base = PathBuf::from(devenv_state).join("vms");
+pub fn cleanup_vm_template(state_dir: &PathBuf) -> Result<()> {
+    let vm_storage_base = state_dir.join("vms");
 
     if !vm_storage_base.exists() {
         return Ok(());

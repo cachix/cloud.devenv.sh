@@ -1,3 +1,4 @@
+use crate::config::VmConfig;
 use crate::protocol::{CompletionStatus, JobConfig, VM};
 use crate::resource_manager::ResourceManager;
 use eyre::Result;
@@ -26,7 +27,12 @@ impl From<VmExitStatus> for CompletionStatus {
 #[async_trait::async_trait]
 pub trait Vm: Send {
     /// Create a new VM with the given configuration
-    async fn new(vm_config: VM, id: String, resource_manager: Arc<ResourceManager>) -> Result<Self>
+    async fn new(
+        vm_config: VM,
+        id: String,
+        resource_manager: Arc<ResourceManager>,
+        config: &VmConfig,
+    ) -> Result<Self>
     where
         Self: Sized;
 
@@ -60,16 +66,19 @@ pub async fn create_vm(
     vm_config: VM,
     id: String,
     resource_manager: Arc<ResourceManager>,
+    config: &VmConfig,
 ) -> Result<Box<dyn Vm>> {
     #[cfg(target_os = "macos")]
     {
-        let vm = crate::vm_impl::macos::MacosVm::new(vm_config, id, resource_manager).await?;
+        let vm =
+            crate::vm_impl::macos::MacosVm::new(vm_config, id, resource_manager, config).await?;
         Ok(Box::new(vm))
     }
 
     #[cfg(target_os = "linux")]
     {
-        let vm = crate::vm_impl::linux::LinuxVm::new(vm_config, id, resource_manager).await?;
+        let vm =
+            crate::vm_impl::linux::LinuxVm::new(vm_config, id, resource_manager, config).await?;
         Ok(Box::new(vm))
     }
 

@@ -2,6 +2,7 @@ use backon::{ExponentialBuilder, Retryable};
 use clap::Parser;
 use devenv_logger::Log;
 use devenv_runner::client::{WebSocketClient, WebSocketError};
+use devenv_runner::config::VmConfig;
 use devenv_runner::job_manager::{JobManager, JobStatusEvent};
 use devenv_runner::protocol::{
     ClientMessage, CompletionStatus, JobConfig, JobStatus, RunnerMetrics, ServerMessage,
@@ -11,6 +12,7 @@ use devenv_runner::vm_manager::{VmCompletionEvent, VmManager};
 use eyre::Result;
 use futures_util::{Stream, StreamExt};
 use reqwest::{Body, Client as HttpClient};
+use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
@@ -183,6 +185,21 @@ async fn setup_log_stream(
 struct Cli {
     #[arg(short = 'u', long, default_value = "ws://cloud.devenv.sh/", value_parser = parse_uri)]
     host: Uri,
+
+    #[arg(long, env = "RESOURCES_DIR")]
+    resources_dir: PathBuf,
+
+    #[arg(long, env = "DEVENV_STATE")]
+    state_dir: PathBuf,
+}
+
+impl Cli {
+    fn vm_config(&self) -> VmConfig {
+        VmConfig {
+            resources_dir: self.resources_dir.clone(),
+            state_dir: self.state_dir.clone(),
+        }
+    }
 }
 
 fn parse_uri(s: &str) -> Result<Uri, String> {
@@ -206,6 +223,7 @@ async fn main() -> Result<()> {
     }
 
     let cli = Cli::parse();
+    let vm_config = cli.vm_config();
 
     // Create resource manager with platform-specific defaults
     let resource_manager = Arc::new(ResourceManager::with_platform_defaults());
@@ -232,7 +250,11 @@ async fn main() -> Result<()> {
     let job_manager = Arc::new(JobManager::new(job_status_tx));
 
     // Create VM manager
-    let vm_manager = Arc::new(VmManager::new(completion_tx, resource_manager.clone()));
+    let vm_manager = Arc::new(VmManager::new(
+        completion_tx,
+        resource_manager.clone(),
+        vm_config,
+    ));
 
     // Create HTTP client for logging
     let http_client = HttpClient::new();
