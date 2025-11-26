@@ -1,8 +1,8 @@
 use crate::config::VmConfig as RunnerVmConfig;
 use crate::protocol::{JobConfig, VM};
-use crate::resource_manager::{IpGuard, ResourceGuard, ResourceManager};
+use crate::resource_manager::{CidGuard, IpGuard, ResourceGuard, ResourceManager};
 use crate::vm::Vm;
-use crate::vsock::{self, GUEST_CID};
+use crate::vsock;
 use cloud_hypervisor_client::apis::client::APIClient;
 use cloud_hypervisor_client::apis::configuration::Configuration;
 use cloud_hypervisor_client::models::console_config::Mode;
@@ -35,6 +35,8 @@ pub struct LinuxVm {
     _resource_guard: Option<ResourceGuard>,
     /// IP guard for automatic IP release (kept alive for RAII cleanup)
     _ip_guard: Option<IpGuard>,
+    /// CID guard for automatic CID release (kept alive for RAII cleanup)
+    _cid_guard: Option<CidGuard>,
     /// The VM identifier
     id: String,
     /// The runtime directory for VM-related files (as TempDir for auto-cleanup)
@@ -241,8 +243,18 @@ impl Vm for LinuxVm {
 
         tracing::info!("Allocated IP {} for VM {}", guest_ip, id);
 
+        // Allocate CID (Context ID) for vsock communication (required for Linux)
+        let cid_guard = CidGuard::new(resource_manager.clone())
+            .await
+            .ok_or_else(|| eyre::eyre!("Failed to allocate CID for VM {}", id))?;
+        let cid = cid_guard
+            .cid()
+            .ok_or_else(|| eyre::eyre!("CID guard has no CID"))?;
+
+        tracing::debug!("Allocated CID {} for VM {}", cid, id);
+
         let vsock_config = VsockConfig {
-            cid: GUEST_CID as i64,
+            cid: cid as i64,
             socket: vsock_socket_path.to_str().unwrap().to_string(),
             iommu: Some(false),
             ..Default::default()
@@ -313,6 +325,7 @@ impl Vm for LinuxVm {
             config: vm_config,
             _resource_guard: Some(resource_guard),
             _ip_guard: Some(ip_guard),
+            _cid_guard: Some(cid_guard),
             id,
             _run_dir_temp: run_dir_temp,
             run_dir,

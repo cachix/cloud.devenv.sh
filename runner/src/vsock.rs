@@ -14,21 +14,6 @@ use tokio::sync::{Mutex, Notify, mpsc};
 use tokio_vsock::{VsockAddr, VsockStream};
 use tracing::{error, info};
 
-// The Context Identifier (CID) is a 32-bit address for vsock communication.
-// The combination of a CID and a port number uniquely identifies a vsock connection.
-//
-// There are several special addresses:
-//
-//   -1U32: VMADDR_CID_ANY is used to indicate any CID.
-//   0: VMADDR_CID_HYPERVISOR is reserved for the hypervisor.
-//   1: VMADDR_CID_LOCAL is the well-known address for local communication (loopback).
-//   2: VMADDR_CID_HOST is the well-known address of the host.
-//
-// Guest CIDs range from 3 to max(2^32 - 1).
-//
-// TODO: if running multiple VMs, this value will be different for each VM.
-pub const GUEST_CID: u32 = 3;
-
 /// The CID for the host.
 pub const HOST_CID: u32 = tokio_vsock::VMADDR_CID_HOST;
 

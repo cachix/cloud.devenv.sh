@@ -175,6 +175,8 @@ pub struct ResourceManager {
     allocation: Arc<RwLock<ResourceState>>,
     // IP pool - queue of available IPs
     free_ips: Arc<RwLock<VecDeque<Ipv4Addr>>>,
+    // CID pool - queue of available Context IDs for vsock (Linux VMs only)
+    free_cids: Arc<RwLock<VecDeque<u32>>>,
 }
 
 impl ResourceManager {
@@ -187,10 +189,28 @@ impl ResourceManager {
             free_ips.push_back(Ipv4Addr::new(10, 0, 0, i));
         }
 
+        // Initialize CID pool with a range of CIDs (3 - 1024)
+        //
+        // The Context Identifier (CID) is a 32-bit address for vsock communication.
+        // The combination of a CID and a port number uniquely identifies a vsock connection.
+        //
+        // There are several special addresses:
+        //   -1U32: VMADDR_CID_ANY is used to indicate any CID.
+        //   0: VMADDR_CID_HYPERVISOR is reserved for the hypervisor.
+        //   1: VMADDR_CID_LOCAL is the well-known address for local communication (loopback).
+        //   2: VMADDR_CID_HOST is the well-known address of the host.
+        //
+        // Guest CIDs range from 3 to max(2^32 - 1).
+        let mut free_cids = VecDeque::new();
+        for cid in 3..=1024 {
+            free_cids.push_back(cid);
+        }
+
         Self {
             limits,
             allocation: Arc::new(RwLock::new(ResourceState::new())),
             free_ips: Arc::new(RwLock::new(free_ips)),
+            free_cids: Arc::new(RwLock::new(free_cids)),
         }
     }
 
@@ -356,6 +376,31 @@ impl ResourceManager {
             free_ips.len()
         );
     }
+
+    /// Allocate a CID (Context ID) from the pool for vsock communication
+    pub async fn allocate_cid(&self) -> Option<u32> {
+        let mut free_cids = self.free_cids.write().await;
+        let cid = free_cids.pop_front();
+
+        if let Some(cid) = cid {
+            tracing::debug!(
+                "Allocated CID: {} ({} CIDs remaining)",
+                cid,
+                free_cids.len()
+            );
+        } else {
+            tracing::warn!("No available CIDs in pool");
+        }
+
+        cid
+    }
+
+    /// Release a CID back to the pool
+    pub async fn release_cid(&self, cid: u32) {
+        let mut free_cids = self.free_cids.write().await;
+        free_cids.push_back(cid);
+        tracing::debug!("Released CID: {} ({} CIDs available)", cid, free_cids.len());
+    }
 }
 
 /// RAII guard for IP address allocation
@@ -393,6 +438,41 @@ impl Drop for IpGuard {
             let resource_manager = self.resource_manager.clone();
             tokio::spawn(async move {
                 resource_manager.release_ip(ip).await;
+            });
+        }
+    }
+}
+
+/// RAII guard for CID allocation (Linux VMs only)
+/// Automatically releases the CID when dropped
+pub struct CidGuard {
+    cid: Option<u32>,
+    resource_manager: Arc<ResourceManager>,
+}
+
+impl CidGuard {
+    /// Create a new CID guard by allocating a CID from the resource manager
+    pub async fn new(resource_manager: Arc<ResourceManager>) -> Option<Self> {
+        let cid = resource_manager.allocate_cid().await?;
+        Some(Self {
+            cid: Some(cid),
+            resource_manager,
+        })
+    }
+
+    /// Get the allocated CID
+    pub fn cid(&self) -> Option<u32> {
+        self.cid
+    }
+}
+
+impl Drop for CidGuard {
+    fn drop(&mut self) {
+        if let Some(cid) = self.cid {
+            // We need to spawn a task to release the CID since drop is not async
+            let resource_manager = self.resource_manager.clone();
+            tokio::spawn(async move {
+                resource_manager.release_cid(cid).await;
             });
         }
     }
