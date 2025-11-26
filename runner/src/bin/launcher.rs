@@ -23,8 +23,7 @@ async fn main() -> Result<()> {
     #[cfg(target_os = "linux")]
     {
         use devenv_runner::vm_impl::linux_networking;
-        linux_networking::setup_host_networking()
-            .expect("Failed to setup host networking. This typically requires root privileges.");
+        linux_networking::setup_host_networking()?;
     }
 
     // Set up VM configuration based on platform

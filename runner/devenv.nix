@@ -175,9 +175,10 @@ let
       # Create local bin directory if it doesn't exist
       mkdir -p "$LOCAL_BIN_DIR"
 
-      # Check if we need to copy the binary (source is newer or target doesn't exist)
-      if [ ! -f "$LOCAL_BIN" ] || [ "$ORIGINAL_BIN" -nt "$LOCAL_BIN" ]; then
+      # Check if we need to copy the binary (doesn't exist or content differs)
+      if [ ! -f "$LOCAL_BIN" ] || ! cmp -s "$ORIGINAL_BIN" "$LOCAL_BIN"; then
         echo "Copying ${name} to $LOCAL_BIN"
+        rm -f "$LOCAL_BIN"
         cp "$ORIGINAL_BIN" "$LOCAL_BIN"
         chmod +x "$LOCAL_BIN"
       fi
@@ -185,12 +186,12 @@ let
       # Check if the binary has the necessary capabilities by testing if any capabilities are set
       CURRENT_CAPS=$(getcap "$LOCAL_BIN" 2>/dev/null || echo "")
       if [ -z "$CURRENT_CAPS" ] || ! echo "$CURRENT_CAPS" | grep -q "cap_"; then
-        echo "${name} needs ${capabilities} capabilities."
-        echo ""
-        echo "Please run the following command to set them:"
-        echo ""
-        echo "  sudo setcap ${capabilities}=ep $LOCAL_BIN"
-        echo ""
+        echo "${name} needs ${capabilities} capabilities." >&2
+        echo "" >&2
+        echo "Please run the following command to set them:" >&2
+        echo "" >&2
+        echo "  sudo setcap ${capabilities}=ep $LOCAL_BIN" >&2
+        echo "" >&2
         exit 1
       fi
 

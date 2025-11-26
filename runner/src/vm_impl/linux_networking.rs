@@ -28,7 +28,10 @@ pub fn setup_host_networking() -> Result<()> {
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         return Err(eyre!(
-            "Failed to enable IP forwarding: {}. Please run: sysctl -w net.ipv4.ip_forward=1",
+            "Failed to enable IP forwarding: {}\n\n\
+            This typically requires root privileges. You can either:\n\
+            1. Run this command as root (sudo)\n\
+            2. Enable IP forwarding manually: sudo sysctl -w net.ipv4.ip_forward=1",
             stderr.trim()
         ));
     }
@@ -95,7 +98,8 @@ table ip devenv_nat {{
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         return Err(eyre!(
-            "Failed to setup NAT rules: {}. Please run: nft",
+            "Failed to setup NAT rules: {}\n\n\
+            This typically requires root privileges. Run this command as root (sudo).",
             stderr.trim()
         ));
     }
