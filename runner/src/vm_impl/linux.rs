@@ -289,6 +289,7 @@ impl Vm for LinuxVm {
             fs: Some(vec![FsConfig {
                 tag: "rootfs".to_string(),
                 socket: virtiofs_socket_path.to_str().unwrap().to_string(),
+                // virtiofsd only supports 2 queues total (1 hipri + 1 request)
                 num_queues: 1,
                 queue_size: 1024,
                 ..Default::default()
@@ -299,8 +300,8 @@ impl Vm for LinuxVm {
                 ip: Some(VM_GATEWAY_IP.to_string()),
                 mask: Some(VM_SUBNET_MASK.to_string()), // /24 subnet
                 mac: None,                              // Let cloud-hypervisor generate MAC address
-                num_queues: Some(2),
-                queue_size: Some(256),
+                num_queues: Some(vm_config.cpu_count as i32),
+                queue_size: Some(1024),
                 iommu: Some(false),
                 ..Default::default()
             }]),
