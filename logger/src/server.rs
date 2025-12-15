@@ -1,6 +1,7 @@
 use axum::{
     BoxError, Router,
     extract::Path,
+    http::{HeaderValue, Method},
     response::{
         IntoResponse, Result,
         sse::{Event, KeepAlive, Sse},
@@ -14,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use slatedb::Db;
 use std::pin::Pin;
 use std::sync::Arc;
-use tower_http::cors::{self, CorsLayer};
+use tower_http::cors::CorsLayer;
 use uuid::Uuid;
 
 use crate::Log;
@@ -32,16 +33,46 @@ struct LogWithLine {
     line: u64,
 }
 
-pub fn create_app(state: Arc<AppState>) -> Router {
+/// Creates the CORS layer with appropriate security settings.
+///
+/// The allowed origin is determined by the CORS_ALLOWED_ORIGIN environment variable.
+/// If not set, defaults to allowing all origins for local development.
+/// In production, this should be set to the specific frontend origin.
+fn create_cors_layer() -> CorsLayer {
+    let allowed_origin = std::env::var("CORS_ALLOWED_ORIGIN").ok();
+
     let cors = CorsLayer::new()
-        .allow_origin(cors::Any)
-        .allow_methods(cors::Any)
-        .allow_headers(cors::Any)
+        .allow_methods([Method::GET, Method::POST, Method::OPTIONS])
+        .allow_headers([axum::http::header::CONTENT_TYPE])
         .expose_headers([
             axum::http::header::CONTENT_TYPE,
             axum::http::header::CACHE_CONTROL,
         ])
         .max_age(std::time::Duration::from_secs(3600));
+
+    match allowed_origin {
+        Some(origin) => {
+            // Use specific origin for production security
+            cors.allow_origin(
+                origin
+                    .parse::<HeaderValue>()
+                    .expect("CORS_ALLOWED_ORIGIN must be a valid header value"),
+            )
+        }
+        None => {
+            // Fall back to permissive for local development only
+            // Log a warning to remind operators to set CORS_ALLOWED_ORIGIN in production
+            eprintln!(
+                "WARNING: CORS_ALLOWED_ORIGIN not set, allowing all origins. \
+                 Set this environment variable in production."
+            );
+            cors.allow_origin(tower_http::cors::Any)
+        }
+    }
+}
+
+pub fn create_app(state: Arc<AppState>) -> Router {
+    let cors = create_cors_layer();
 
     Router::new()
         .route("/{uuid}", post(post_logs))
@@ -134,19 +165,17 @@ async fn get_logs(
     let sse = Sse::new(stream).keep_alive(keep_alive);
     let mut response = sse.into_response();
 
+    // Set cache and content-type headers for SSE
+    // Note: CORS headers are handled by the CorsLayer middleware
     let headers = response.headers_mut();
-    headers.insert("Access-Control-Allow-Origin", "*".parse().unwrap());
     headers.insert(
-        "Access-Control-Allow-Methods",
-        "GET, POST, OPTIONS".parse().unwrap(),
+        axum::http::header::CACHE_CONTROL,
+        "no-cache".parse().expect("valid header value"),
     );
-    headers.insert("Access-Control-Allow-Headers", "*".parse().unwrap());
     headers.insert(
-        "Access-Control-Expose-Headers",
-        "Content-Type, Cache-Control".parse().unwrap(),
+        axum::http::header::CONTENT_TYPE,
+        "text/event-stream".parse().expect("valid header value"),
     );
-    headers.insert("Cache-Control", "no-cache".parse().unwrap());
-    headers.insert("Content-Type", "text/event-stream".parse().unwrap());
 
     response
 }
