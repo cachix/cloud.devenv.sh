@@ -32,6 +32,16 @@
   };
 
   packages = [
+    inputs.nix.packages.${pkgs.system}.nix
+    # nix C libs for nix-bindings-rust
+    inputs.nix.packages.${pkgs.system}.nix-expr-c
+    inputs.nix.packages.${pkgs.system}.nix-store-c
+    inputs.nix.packages.${pkgs.system}.nix-util-c
+    inputs.nix.packages.${pkgs.system}.nix-flake-c
+    inputs.nix.packages.${pkgs.system}.nix-cmd-c
+    inputs.nix.packages.${pkgs.system}.nix-fetchers-c
+    pkgs.boehmgc
+    pkgs.rustPlatform.bindgenHook
     pkgs.openssl
     pkgs.cargo-watch
     pkgs.cargo-outdated
@@ -50,6 +60,7 @@
   languages = {
     rust = {
       enable = true;
+      rustflags = "--cfg tokio_unstable --cfg tracing_unstable";
     };
 
     javascript = {
@@ -166,7 +177,10 @@
 
   outputs =
     let
-      backendPackages = pkgs.callPackage ./package.nix { };
+      nixPkg = inputs.nix.packages.${pkgs.system}.nix;
+      backendPackages = pkgs.callPackage ./package.nix {
+        nix = nixPkg;
+      };
       frontendPackage = pkgs.callPackage ./frontend/package.nix {
         inherit (config.env) BASE_URL OAUTH_AUDIENCE OAUTH_CLIENT_ID;
       };

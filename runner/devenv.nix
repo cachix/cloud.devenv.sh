@@ -7,7 +7,9 @@
 }:
 let
   # Import our package definitions
-  packages = pkgs.callPackage ../package.nix { };
+  packages = pkgs.callPackage ../package.nix {
+    nix = inputs.nix.packages.${pkgs.system}.nix;
+  };
   # Extract binaries
   inherit (packages) devenv-init devenv-driver;
 

@@ -1,9 +1,25 @@
 #[cfg(test)]
 mod tests {
+    use crate::config::VmConfig;
     use crate::protocol::{Platform, VM};
     use crate::resource_manager::{ResourceLimits, ResourceManager};
     use crate::vm::create_vm;
+    use std::path::PathBuf;
     use std::sync::Arc;
+
+    // Helper to create a test VmConfig
+    fn test_config() -> VmConfig {
+        let resources_dir = std::env::var("RESOURCES_DIR")
+            .map(PathBuf::from)
+            .unwrap_or_default();
+        let state_dir = std::env::var("DEVENV_STATE")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| std::env::temp_dir().join("devenv-test"));
+        VmConfig {
+            resources_dir,
+            state_dir,
+        }
+    }
 
     // Helper to create a test VM configuration
     fn test_vm_config(platform: Platform) -> VM {
@@ -38,6 +54,7 @@ mod tests {
 
         // Create resource manager
         let resource_manager = test_resource_manager();
+        let config = test_config();
 
         // Create VM configurations for current platform
         let platform = Platform::current();
@@ -49,6 +66,7 @@ mod tests {
             vm_config1.clone(),
             "test-vm-1".to_string(),
             resource_manager.clone(),
+            &config,
         )
         .await;
 
@@ -64,6 +82,7 @@ mod tests {
             vm_config2.clone(),
             "test-vm-2".to_string(),
             resource_manager.clone(),
+            &config,
         )
         .await;
 
@@ -129,6 +148,7 @@ mod tests {
             None,               // No instance limit
         );
         let resource_manager = Arc::new(ResourceManager::new(limits));
+        let config = test_config();
 
         // VM should fail due to insufficient resources (only 1 CPU available, need 2)
         let platform = Platform::current();
@@ -138,6 +158,7 @@ mod tests {
             vm_config.clone(),
             "test-vm-1".to_string(),
             resource_manager.clone(),
+            &config,
         )
         .await;
 
@@ -157,17 +178,18 @@ mod tests {
         }
 
         let resource_manager = test_resource_manager();
+        let config = Arc::new(test_config());
         let platform = Platform::current();
 
         // Spawn multiple VMs concurrently
         let mut handles = vec![];
         for i in 0..3 {
             let rm = resource_manager.clone();
+            let cfg = config.clone();
             let vm_config = test_vm_config(platform.clone());
-            let handle =
-                tokio::spawn(
-                    async move { create_vm(vm_config, format!("test-vm-{}", i), rm).await },
-                );
+            let handle = tokio::spawn(async move {
+                create_vm(vm_config, format!("test-vm-{}", i), rm, &cfg).await
+            });
             handles.push(handle);
         }
 
@@ -247,6 +269,7 @@ mod tests {
 
         // Create resource manager
         let resource_manager = test_resource_manager();
+        let config = test_config();
 
         // Create VM configuration for current platform
         let platform = Platform::current();
@@ -257,6 +280,7 @@ mod tests {
             vm_config,
             "test-vm-logging".to_string(),
             resource_manager.clone(),
+            &config,
         )
         .await
         .expect("Failed to create VM");
