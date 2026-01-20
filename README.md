@@ -78,7 +78,7 @@ in {
 - **Runner** (Rust) - WebSocket-connected service for executing commands in remote environments
 - **Logger** (Rust) - Centralized logging service for collecting and managing logs
 - **Database** (PostgreSQL 17) - Persistent storage with Diesel ORM migrations
-- **Authentication** ([Zitadel](https://zitadel.com)) - Open Source OIDC SSO with OAuth2/LDAP/SAML2/OTP support
+- **Authentication** (oauth-kit) - Session-based OAuth with GitHub provider
 
 ## Development
 
@@ -92,11 +92,7 @@ in {
 2. Create [GitHub App](https://github.com/settings/apps/new):
 
 - Name: Choose a unique name for your app (this will be used in config as `app_name`)
-- Callback URLs:
-  - Legacy zitadel login
-    `http://localhost:9500/ui/login/login/externalidp/callback`
-  - V2 login UI
-    `http://localhost:9500/idps/callback`
+- Callback URL: `<BASE_URL>/auth/callback/github`
 - Permissions: Repository: Check (write), Contents (Read)
 - Account permissions: read only emails
 - Subscribe to events: Pull Request, Check run, Push
@@ -109,9 +105,8 @@ in {
    - Save the client ID and client secret to `.env`.
 
    ```shell
-   export TF_VAR_github_client_id=...
-   export TF_VAR_github_client_secret=...
-   export TF_VAR_redirect_uris=["http://localhost:1234/", "<BASE_URL>/"]
+   secretspec set --provider env GITHUB_OAUTH_CLIENT_ID="your-client-id"
+   secretspec set --provider env GITHUB_OAUTH_CLIENT_SECRET="your-client-secret"
    ```
 
 4. Create `./cloud.devenv.toml`:
@@ -134,14 +129,6 @@ app_name = "your-app-name" # The name of your GitHub app
 
    ```console
    devenv up
-   ```
-
-7. Initialize Zitadel by following `terraform/zitadel/README.md`
-
-8. Set the Zitadel webhook signing key:
-
-   ```shell
-   secretspec set --provider env ZITADEL_WEBHOOK_SIGNING_KEY="$(cat .devenv/state/zitadel/signing-key.txt)"
    ```
 
 ### Migrations

@@ -5,8 +5,8 @@ import Components.Footer
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick)
+import Http
 import Icons
-import Oidc.Model
 import RemoteData
 import Route exposing (Route)
 import Route.Path
@@ -18,7 +18,7 @@ type alias Props msg =
     { onSignIn : msg
     , onToggleTheme : msg
     , theme : Theme
-    , user : RemoteData.RemoteData Oidc.Model.Error User
+    , user : RemoteData.RemoteData Http.Error User
     , route : Route ()
     }
 
@@ -59,7 +59,7 @@ viewHeader { onSignIn, onToggleTheme, theme, user, route } =
                                     ( "cloud.devenv.sh", Route.Path.Home )
 
                                 _ ->
-                                    ( if userInfo.beta_access then
+                                    ( if userInfo.betaAccess then
                                         "Go to dashboard"
 
                                       else

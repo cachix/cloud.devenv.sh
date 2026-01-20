@@ -1,13 +1,18 @@
-module Shared.Model exposing (Model, Theme(..), User, themeFromString, themeToString, toUser)
+module Shared.Model exposing (Model, Theme(..), User, themeFromString, themeToString)
 
 import Api.Data as Api
-import Oidc.Model
+import Http
 import RemoteData exposing (WebData)
 import Time
 
 
 type alias User =
-    Oidc.Model.UserInfo
+    { userId : String
+    , name : Maybe String
+    , email : Maybe String
+    , avatarUrl : Maybe String
+    , betaAccess : Bool
+    }
 
 
 type Theme
@@ -21,11 +26,8 @@ type alias Model =
     -- The base URL of the backend API
     , baseUrl : String
 
-    -- The current user
-    , user : RemoteData.RemoteData Oidc.Model.Error User
-
-    -- OIDC auth state
-    , oidcAuth : Oidc.Model.Model
+    -- The current user (fetched from /api/v1/account/me)
+    , user : RemoteData.RemoteData Http.Error User
 
     -- Frontend configuration from backend
     , config : WebData Api.FrontendConfig
@@ -33,11 +35,6 @@ type alias Model =
     -- Theme (light/dark)
     , theme : Theme
     }
-
-
-toUser : Oidc.Model.UserInfo -> User
-toUser account =
-    account
 
 
 themeToString : Theme -> String

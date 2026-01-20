@@ -23,6 +23,5 @@ inputs:
 allowUnfree: true
 imports:
   - ./runner/
-  - ./nix/zitadel/service.nix
   - ./nix/lightainer/
 secretspec: {}

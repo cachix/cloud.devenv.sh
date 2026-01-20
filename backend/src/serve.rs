@@ -1,8 +1,12 @@
 use crate::config::{AppState, Config, FrontendConfig, SecretSpec};
 use axum::Json;
+use axum::Router;
 use axum::extract::State;
 use eyre::Context;
 use eyre::Result;
+use oauth_kit::axum::AuthRouter;
+use oauth_kit::provider::providers;
+use tower_sessions_cookie_store::{CookieSessionConfig, CookieSessionManagerLayer, Key};
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_axum::routes;
 
@@ -34,7 +38,6 @@ pub fn router() -> OpenApiRouter<AppState> {
         .nest("/api/v1/account", crate::account::serve::router())
         .nest("/api/v1/job", crate::job::serve::router())
         .nest("/api/v1/runner", crate::runner::serve::router())
-        .nest("/api/v1/zitadel/actions", crate::zitadel::serve::router())
         .routes(routes!(metrics))
         .routes(routes!(get_config))
         .layer(
@@ -50,12 +53,69 @@ async fn serve(app_state: AppState) -> Result<()> {
     // Start the job timeout checker
     crate::runner::serve::start_job_timeout_checker(app_state.clone());
 
+    // Get OAuth credentials from environment
+    let github_client_id = app_state
+        .secrets
+        .github_oauth_client_id
+        .as_ref()
+        .ok_or_else(|| eyre::eyre!("GITHUB_OAUTH_CLIENT_ID not configured"))?
+        .clone();
+    let github_client_secret = app_state
+        .secrets
+        .github_oauth_client_secret
+        .as_ref()
+        .ok_or_else(|| eyre::eyre!("GITHUB_OAUTH_CLIENT_SECRET not configured"))?
+        .clone();
+
+    // Configure session cookie store
+    let session_secret = app_state
+        .secrets
+        .session_secret
+        .as_ref()
+        .ok_or_else(|| eyre::eyre!("SESSION_SECRET not configured"))?;
+    let secret_bytes = hex::decode(session_secret)
+        .map_err(|e| eyre::eyre!("SESSION_SECRET must be valid hex: {}", e))?;
+    let key = Key::try_from(secret_bytes.as_slice())
+        .map_err(|e| eyre::eyre!("SESSION_SECRET must be 64 bytes: {}", e))?;
+
+    let is_production = app_state.config.base_url.scheme() == "https";
+    let cookie_config = CookieSessionConfig::default()
+        .with_secure(is_production)
+        .with_http_only(true)
+        .with_name("devenv_session");
+    let session_layer = CookieSessionManagerLayer::private(key).with_config(cookie_config);
+
+    // Create GitHub OAuth provider
+    let github = providers::github(&github_client_id, &github_client_secret);
+    let base_url = app_state
+        .config
+        .base_url
+        .to_string()
+        .trim_end_matches('/')
+        .to_string();
+
+    // Build OAuth router
+    let auth_router = AuthRouter::new(app_state.oauth_store.clone(), &base_url)
+        .with_provider(github)
+        .with_signin_redirect("/")
+        .with_signout_redirect("/")
+        .build();
+
     let addr = format!("0.0.0.0:{}", app_state.config.port);
     tracing::info!("Listening on {}", addr);
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
-    let (router, _) = router().split_for_parts();
-    let router = router.with_state(app_state);
-    axum::serve(listener, router).await.wrap_err("serve")
+
+    // Build the API router
+    let (api_router, _) = router().split_for_parts();
+    let api_router = api_router.with_state(app_state);
+
+    // Combine auth router with API router and apply session layer
+    let app = Router::new()
+        .merge(auth_router)
+        .merge(api_router)
+        .layer(session_layer);
+
+    axum::serve(listener, app).await.wrap_err("serve")
 }
 
 pub fn main(config: Config) -> Result<()> {

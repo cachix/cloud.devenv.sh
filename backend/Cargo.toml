@@ -47,7 +47,8 @@ tracing-error.workspace = true
 utoipa.workspace = true
 utoipa-axum.workspace = true
 uuid = { workspace = true, features = ["v7"] }
-zitadel.workspace = true
+oauth-kit = { path = "../oauth-kit" }
+tower-sessions-cookie-store = { version = "0.5", features = ["private"] }
 prost.workspace = true
 pbjson-types = "0.7"
 url.workspace = true
