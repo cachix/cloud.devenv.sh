@@ -17,11 +17,11 @@ let
     lockFile = ./Cargo.lock;
     outputHashes = {
       "axum-typed-websockets-0.6.0" = "sha256-uou03y7v6gtNDrt2Dcb0NcSHNfZqExWBfTYc4sx5MQY=";
-      "devenv-2.0.0" = "sha256-d80K5fyUthiO89Q7L8Gha+7U9q/teAxplulCbws1K5I=";
-      "nix-bindings-bindgen-raw-0.1.0" = "sha256-Q+HPIqzOAJ85Af/6ag2IDQ0ssOXatb/AO84pUsPIT98=";
-      "secretspec-0.5.0" = "sha256-YKBZcdbR62IxchnGO/Vn5hWac3phvAlE6gGeAhBS50A=";
-      "ser_nix-0.1.2" = "sha256-IjTsHTAEBQQ8xyDHW51wufu2mmfmiw+alVjrLrG8bkY=";
-      "zitadel-0.0.0-development" = "sha256-Ia2LYUi8VD30kx48pwtVAVN7ko7cOgC7okx6w4bQ1/0=";
+      "devenv-2.0.0" = "sha256-pf5bnn9Q99gISJK4b1Xc1RyX4SHcogUPNxz7EBMYaGs=";
+      "iocraft-0.7.16" = "sha256-MBwTP8HeJnXnnJqsKkrKIuSk2wxFChotwO58/1JB1js=";
+      "nix-bindings-bindgen-raw-0.1.0" = "sha256-rSswQdG/9/oe28Q0MTzQJ9jEGcFPEyfxVXvfmtlr71I=";
+      "secretspec-0.6.1" = "sha256-gOmxzGTbKWVXkv2ZPmxxGUV1LB7vOYd7BXqaVd2LaFc=";
+      "ser_nix-0.1.2" = "sha256-E1vPfhVDkeSt6OxYhnj8gYadUpJJDLRF5YiUkujQsCQ=";
     };
   };
 
@@ -74,6 +74,7 @@ let
         nix.libs.nix-flake-c
         nix.libs.nix-cmd-c
         nix.libs.nix-fetchers-c
+        nix.libs.nix-main-c
         boehmgc
         llvmPackages.clang-unwrapped
       ];

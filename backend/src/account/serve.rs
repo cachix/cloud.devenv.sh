@@ -19,20 +19,14 @@ pub async fn get_account(
     user: BetaUser,
     State(_state): State<AppState>,
 ) -> Result<Json<serde_json::Value>> {
-    tracing::info!("/me");
-    tracing::info!("{:?}", user);
+    tracing::info!("/me for account_id={}", user.account_id);
 
-    // Return user information from Zitadel introspection
+    // Return user information from local database
     let user_info = serde_json::json!({
-        "user_id": user.sub,
-        "username": user.username,
+        "user_id": user.account_id.to_string(),
         "name": user.name,
-        "given_name": user.given_name,
-        "family_name": user.family_name,
-        "preferred_username": user.preferred_username,
         "email": user.email,
-        "email_verified": user.email_verified,
-        "locale": user.locale,
+        "avatar_url": user.avatar_url,
         "beta_access": true, // This user always has beta access since we validate it
     });
 

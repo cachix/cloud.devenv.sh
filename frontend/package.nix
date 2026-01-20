@@ -5,8 +5,6 @@
   elmPackages,
   elm-land,
   BASE_URL,
-  OAUTH_CLIENT_ID,
-  OAUTH_AUDIENCE,
 }:
 
 let
@@ -19,7 +17,7 @@ buildNpmPackage (finalAttrs: {
   src = lib.cleanSource ./.;
 
   env = {
-    inherit BASE_URL OAUTH_CLIENT_ID OAUTH_AUDIENCE;
+    inherit BASE_URL;
   };
 
   nativeBuildInputs = [

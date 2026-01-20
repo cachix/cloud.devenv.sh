@@ -26,8 +26,6 @@ function loadHighlightTheme(theme: string): void {
   document.head.appendChild(link);
 }
 
-// No longer needed - Elm handles scroll optimization internally
-
 // SSE Connection Manager class
 class SSEConnectionManager {
   private connections = new Map<string, EventSource>();
@@ -213,13 +211,11 @@ class SSEConnectionManager {
 }
 
 interface RequiredEnvVars {
-  OAUTH_CLIENT_ID: string;
-  OAUTH_AUDIENCE: string;
   BASE_URL: string;
 }
 
 function validateRequiredEnvVars(env: any): RequiredEnvVars {
-  const requiredVars = ["OAUTH_CLIENT_ID", "OAUTH_AUDIENCE", "BASE_URL"];
+  const requiredVars = ["BASE_URL"];
   const missing = requiredVars.filter((varName) => !env[varName]);
 
   if (missing.length > 0) {
@@ -229,8 +225,6 @@ function validateRequiredEnvVars(env: any): RequiredEnvVars {
   }
 
   return {
-    OAUTH_CLIENT_ID: env.OAUTH_CLIENT_ID,
-    OAUTH_AUDIENCE: env.OAUTH_AUDIENCE,
     BASE_URL: env.BASE_URL,
   };
 }
@@ -241,23 +235,11 @@ function validateRequiredEnvVars(env: any): RequiredEnvVars {
 // into your `Shared.init` function.
 export const flags = ({ env }: { env: any }): any => {
   let validatedEnv = validateRequiredEnvVars(env);
-
-  let oauth = {
-    clientId: validatedEnv.OAUTH_CLIENT_ID,
-    audience: validatedEnv.OAUTH_AUDIENCE,
-    state: rememberedBytes(),
-  };
-
-  let authData = getAuthData();
-  let userInfo = getUserInfo();
   let theme = getTheme();
 
   return {
     now: Date.now(),
     baseUrl: validatedEnv.BASE_URL,
-    authData,
-    userInfo,
-    oauth,
     theme,
   };
 };
@@ -514,13 +496,6 @@ export const onReady = ({ app, env }: { app: any; env: any }): void => {
     app.ports.outgoing.subscribe(
       ({ tag, data }: { tag: string; data: any }) => {
         switch (tag) {
-          case "GEN_RANDOM_BYTES":
-            const buffer = new Uint8Array(data);
-            crypto.getRandomValues(buffer);
-            const bytes = Array.from(buffer);
-            localStorage.setItem("bytes", JSON.stringify(bytes));
-            app.ports.incoming.send({ tag: "GOT_RANDOM_BYTES", data: bytes });
-            break;
           case "SEND_TO_LOCAL_STORAGE":
             localStorage.setItem(data.key, JSON.stringify(data.value));
             break;
@@ -538,34 +513,6 @@ export const onReady = ({ app, env }: { app: any; env: any }): void => {
   // Set initial theme
   applyTheme(getTheme());
 };
-
-// Fetch bytes for PKCE from local storage
-function rememberedBytes(): number[] | null {
-  const bytes = localStorage.getItem("bytes");
-  return bytes ? JSON.parse(bytes) : null;
-}
-
-function getAuthData(): any {
-  try {
-    const rawAuthData = localStorage.getItem("authData");
-    if (!rawAuthData) return null;
-
-    const authData = JSON.parse(rawAuthData);
-    return authData?.token ? authData : null;
-  } catch (e) {
-    return null;
-  }
-}
-
-function getUserInfo(): any {
-  try {
-    const rawUserInfo = localStorage.getItem("userInfo");
-    if (!rawUserInfo) return null;
-    return JSON.parse(rawUserInfo);
-  } catch (e) {
-    return null;
-  }
-}
 
 // Theme management
 function getTheme(): string {

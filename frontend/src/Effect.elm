@@ -6,7 +6,7 @@ port module Effect exposing
     , pushRoutePath, replaceRoutePath
     , loadExternalUrl, back
     , map, toCmd
-    , clearAuthData, clearUserInfo, genRandomBytes, incoming, outgoing, saveAuthData, saveUserInfo, sendApi, setTheme, signIn, signOut, toggleTheme
+    , outgoing, sendApi, setTheme, signIn, signOut, toggleTheme
     )
 
 {-|
@@ -30,9 +30,6 @@ import Dict exposing (Dict)
 import Http
 import Json.Decode
 import Json.Encode
-import OAuth
-import Oidc.Model
-import Oidc.Msg
 import Route exposing (Route)
 import Route.Path
 import Shared.Model
@@ -56,8 +53,6 @@ type Effect msg
     | SendSharedMsg Shared.Msg.Msg
       -- LOCAL STORAGE
     | SendToLocalStorage { key : String, value : Json.Encode.Value }
-      -- AUTH
-    | GenRandomBytes Int
       -- API
     | SendApi
         { request : Api.Request msg
@@ -70,9 +65,6 @@ type Effect msg
 
 
 port outgoing : { tag : String, data : Json.Encode.Value } -> Cmd msg
-
-
-port incoming : (Json.Encode.Value -> msg) -> Sub msg
 
 
 
@@ -203,9 +195,6 @@ map fn effect =
         SendToLocalStorage options ->
             SendToLocalStorage options
 
-        GenRandomBytes n ->
-            GenRandomBytes n
-
         SendApi { request, onHttpError } ->
             SendApi
                 { request = Api.map fn request
@@ -262,14 +251,8 @@ toCmd options effect =
                         ]
                 }
 
-        GenRandomBytes n ->
-            outgoing { tag = "GEN_RANDOM_BYTES", data = Json.Encode.int n }
-
         SendApi { request, onHttpError } ->
             let
-                oidcAuth =
-                    options.shared.oidcAuth
-
                 expect =
                     Http.expectJson
                         (\httpResult ->
@@ -280,17 +263,8 @@ toCmd options effect =
                                 Err httpError ->
                                     onHttpError httpError
                         )
-
-                withBearerToken req =
-                    case oidcAuth.flow of
-                        Oidc.Model.Authenticated auth ->
-                            Api.withHeader "Authorization" (OAuth.tokenToString auth.token) req
-
-                        _ ->
-                            req
             in
             request
-                |> withBearerToken
                 |> Api.withBasePath options.shared.baseUrl
                 |> Api.sendWithCustomExpect expect
 
@@ -300,46 +274,9 @@ signIn =
     SendSharedMsg Shared.Msg.SignIn
 
 
-genRandomBytes : Int -> Effect msg
-genRandomBytes n =
-    GenRandomBytes n
-
-
 signOut : Effect msg
 signOut =
     SendSharedMsg Shared.Msg.SignOut
-
-
-saveAuthData : Oidc.Model.AuthData -> Effect msg
-saveAuthData auth =
-    SendToLocalStorage
-        { key = "authData"
-        , value = Oidc.Model.encodeAuthData auth
-        }
-
-
-clearAuthData : Effect msg
-clearAuthData =
-    SendToLocalStorage
-        { key = "authData"
-        , value = Json.Encode.null
-        }
-
-
-saveUserInfo : Oidc.Model.UserInfo -> Effect msg
-saveUserInfo userInfo =
-    SendToLocalStorage
-        { key = "userInfo"
-        , value = Oidc.Model.encodeUserInfo userInfo
-        }
-
-
-clearUserInfo : Effect msg
-clearUserInfo =
-    SendToLocalStorage
-        { key = "userInfo"
-        , value = Json.Encode.null
-        }
 
 
 setTheme : String -> Effect msg
@@ -361,9 +298,7 @@ toggleTheme =
 
 {-| Send an API request by converting it into an Effect.
 
-This handles:
-
-  - Authentication: by attaching a bearer token to the request
+This handles authentication automatically via cookies (session-based auth).
 
 We take extra care to avoid adding an extra type variable to our Effect type.
 This is done by deconstructing the `toMsg` function, so that our `Request a` becomes a `Request msg`.
