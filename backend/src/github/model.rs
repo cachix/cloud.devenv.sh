@@ -794,15 +794,9 @@ impl WebhookProcessor {
         mac.update(body);
 
         let signature_bytes = hex::decode(signature)?;
-        let signature_array =
-            hmac::digest::Output::<Sha256>::from_slice(&signature_bytes).to_owned();
 
         // Use constant-time comparison from hmac crate
-        use hmac::digest::CtOutput;
-        if mac.finalize() == CtOutput::new(signature_array) {
-            Ok(())
-        } else {
-            Err(eyre::eyre!("Invalid signature"))
-        }
+        mac.verify_slice(&signature_bytes)
+            .map_err(|_| eyre::eyre!("Invalid signature"))
     }
 }
