@@ -40,6 +40,7 @@
     inputs.nix.packages.${pkgs.system}.nix-flake-c
     inputs.nix.packages.${pkgs.system}.nix-cmd-c
     inputs.nix.packages.${pkgs.system}.nix-fetchers-c
+    inputs.nix.packages.${pkgs.system}.nix-main-c
     pkgs.boehmgc
     pkgs.rustPlatform.bindgenHook
     pkgs.openssl
@@ -80,16 +81,14 @@
       '';
       process-compose = {
         depends_on.postgres.condition = "process_healthy";
-        depends_on.zitadel.condition = "process_healthy";
       };
     };
     backend = {
       exec = ''
-        cargo watch -w backend -x "run -p devenv-backend serve"
+        cargo watch -w backend -w oauth-kit -x "run -p devenv-backend serve"
       '';
       process-compose = {
         depends_on.postgres.condition = "process_healthy";
-        depends_on.zitadel.condition = "process_healthy";
         depends_on.backend-migrate.condition = "process_completed_successfully";
         readiness_probe = {
           http_get = {
@@ -136,7 +135,6 @@
       enable = true;
       target = "localhost:1234";
     };
-    zitadel.enable = true;
   };
 
   git-hooks = {
@@ -182,7 +180,7 @@
         nix = nixPkg;
       };
       frontendPackage = pkgs.callPackage ./frontend/package.nix {
-        inherit (config.env) BASE_URL OAUTH_AUDIENCE OAUTH_CLIENT_ID;
+        inherit (config.env) BASE_URL;
       };
     in
     {
@@ -234,9 +232,6 @@
                   [github]
                   app_name="devenv-cloud"
                   app_id = 1897971
-
-                  [zitadel]
-                  endpoint = "https://auth.devenv.sh"
                 '';
                 destination = "/etc/cloud.devenv.toml";
               })
@@ -292,21 +287,4 @@
     ];
   };
 
-  containers."zitadel" = config.lib.mkLightainer {
-    name = "devenv-cloud-zitadel";
-    tag = "latest";
-    entrypoint = lib.splitString " " (
-      lib.replaceStrings [ "\\\n" "  " ] [ " " " " ] (
-        lib.replaceStrings [ "\n" ] [ " " ] config.processes.zitadel.exec
-      )
-    );
-    layers = [
-      {
-        deps = [
-          config.services.zitadel.package
-          pkgs.bash
-        ];
-      }
-    ];
-  };
 }

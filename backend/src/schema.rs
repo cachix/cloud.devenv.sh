@@ -3,6 +3,32 @@
 diesel::table! {
     accounts (id) {
         id -> Uuid,
+        email -> Nullable<Text>,
+        email_verified -> Bool,
+        name -> Nullable<Text>,
+        avatar_url -> Nullable<Text>,
+        created_at -> Timestamptz,
+        updated_at -> Timestamptz,
+    }
+}
+
+diesel::table! {
+    account_role (account_id, role) {
+        account_id -> Uuid,
+        role -> Text,
+        granted_at -> Timestamptz,
+    }
+}
+
+diesel::table! {
+    oauth_account (id) {
+        id -> Uuid,
+        account_id -> Uuid,
+        provider -> Text,
+        provider_account_id -> Text,
+        provider_email -> Nullable<Text>,
+        raw_profile -> Nullable<Jsonb>,
+        created_at -> Timestamptz,
     }
 }
 
@@ -86,14 +112,17 @@ diesel::table! {
     }
 }
 
+diesel::joinable!(account_role -> accounts (account_id));
 diesel::joinable!(github_commit -> github_repo (repo_id));
 diesel::joinable!(github_installation -> github_owner (owner_id));
 diesel::joinable!(github_owner -> github_instance (instance_id));
 diesel::joinable!(github_repo -> github_owner (owner_id));
 diesel::joinable!(jobs_github -> github_commit (commit_id));
 diesel::joinable!(jobs_github -> jobs (job_id));
+diesel::joinable!(oauth_account -> accounts (account_id));
 
 diesel::allow_tables_to_appear_in_same_query!(
+    account_role,
     accounts,
     github_commit,
     github_installation,
@@ -102,5 +131,6 @@ diesel::allow_tables_to_appear_in_same_query!(
     github_repo,
     jobs,
     jobs_github,
+    oauth_account,
     runners,
 );

@@ -1,50 +1,54 @@
 # OAuth Authorization Flow
 
-Our frontend application uses the OAuth PKCE flow to authenticate users. The flow is as follows:
+Authentication uses oauth-kit with GitHub as the OAuth provider. Session cookies manage user state.
 
 ```
-Frontend                     Zitadel                    GitHub (IDP)
-     |                          |                           |
-     |                          |                           |
-     |  1. Initiate OAuth Flow  |                           |
-     |------------------------->|                           |
-     |                          |                           |
-     |  2. Redirect to Zitadel  |                           |
-     |<-------------------------|                           |
-     |                          |                           |
-     |  3. User interacts       |                           |
-     |     with Zitadel         |                           |
-     |------------------------->|                           |
-     |                          |                           |
-     |                          |  4. Initiate OAuth        |
-     |                          |     with GitHub           |
-     |                          |-------------------------->|
-     |                          |                           |
-     |                          |  5. Redirect to GitHub    |
-     |                          |<--------------------------|
-     |                          |                           |
-     |                          |  6. User authenticates    |
-     |                          |     with GitHub           |
-     |                          |-------------------------->|
-     |                          |                           |
-     |                          |  7. Authorization code    |
-     |                          |<--------------------------|
-     |                          |                           |
-     |                          |  8. Exchange code         |
-     |                          |     for token             |
-     |                          |-------------------------->|
-     |                          |                           |
-     |                          |  9. Access token          |
-     |                          |<--------------------------|
-     |                          |                           |
-     |  10. Redirect to         |                           |
-     |      Frontend callback   |                           |
-     |<-------------------------|                           |
-     |                          |                           |
-     |  11. Exchange code       |                           |
-     |      for token           |                           |
-     |------------------------->|                           |
-     |                          |                           |
-     |  12. Access token        |                           |
-     |<-------------------------|                           |
+Frontend                     Backend (oauth-kit)              GitHub
+     |                              |                           |
+     |  1. Click "Sign In"          |                           |
+     |----------------------------->|                           |
+     |     GET /auth/signin/github  |                           |
+     |                              |                           |
+     |  2. Redirect to GitHub       |                           |
+     |<-----------------------------|                           |
+     |                              |                           |
+     |  3. User authenticates       |                           |
+     |  -------------------------------------------------------->|
+     |                              |                           |
+     |  4. GitHub redirects back    |                           |
+     |     with authorization code  |                           |
+     |<----------------------------------------------------------|
+     |     GET /auth/callback/github?code=...                   |
+     |----------------------------->|                           |
+     |                              |                           |
+     |                              |  5. Exchange code for     |
+     |                              |     access token          |
+     |                              |-------------------------->|
+     |                              |                           |
+     |                              |  6. Fetch user profile    |
+     |                              |-------------------------->|
+     |                              |                           |
+     |                              |  7. Find or create user   |
+     |                              |     in database           |
+     |                              |                           |
+     |  8. Set session cookie       |                           |
+     |     and redirect to /        |                           |
+     |<-----------------------------|                           |
+     |                              |                           |
+     |  9. GET /api/v1/account/me   |                           |
+     |----------------------------->|                           |
+     |     (with session cookie)    |                           |
+     |                              |                           |
+     |  10. Return user info        |                           |
+     |<-----------------------------|                           |
 ```
+
+## Database Schema
+
+- `accounts` - User accounts with email, name, avatar_url
+- `oauth_account` - Links OAuth provider identities to accounts
+- `account_role` - Role-based access control (e.g., `beta_user`)
+
+## Sign Out
+
+`GET /auth/signout` clears the session cookie and redirects to `/`.

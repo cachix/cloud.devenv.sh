@@ -105,7 +105,6 @@ utoipa = { version = "5.3.1", features = ["chrono", "uuid"] }
 utoipa-axum = "0.2"
 uuid = { version = "1.11.0", features = ["v7", "serde"] }
 which = "7.0.2"
-zitadel = { git = "https://github.com/cachix/zitadel-rust", branch = "cachix", features = ["api", "axum", "actions-v3"] }
 gix = { version = "0.71.0", features = [
     "worktree-mutation",
     "blocking-network-client",
