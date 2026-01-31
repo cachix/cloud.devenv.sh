@@ -316,19 +316,17 @@ async fn webhook(
             let installation = GithubInstallation::get_for_owner_id(conn, db_owner.id).await?;
 
             // Get an installation-authenticated client
-            let installation_client =
-                JobGitHub::get_installation_client(&app_state, installation.id)?;
+            let github_client = crate::github::integration::GitHubApiClient::for_installation(
+                &app_state,
+                installation.id,
+            )?;
 
             // Check if devenv.nix exists
-            let content_items = installation_client
-                .repos(owner_login.clone(), repo_name.clone())
-                .get_content()
-                .path("devenv.nix")
-                .r#ref(&push.r#ref)
-                .send()
+            let devenv_nix_exists = github_client
+                .file_exists(&owner_login, &repo_name, "devenv.nix", &push.r#ref)
                 .await?;
 
-            if !content_items.items.is_empty() {
+            if devenv_nix_exists {
                 // Extract reference name without refs/heads/ prefix
                 let ref_name = push.r#ref.trim_start_matches("refs/heads/").to_string();
 
@@ -360,24 +358,9 @@ async fn webhook(
                 GitHubCommit::create(conn, github_commit.clone()).await?;
 
                 // Try to fetch devenv.yaml to determine VM configurations
-                let devenv_yaml_content = match installation_client
-                    .repos(owner_login.clone(), repo_name.clone())
-                    .get_content()
-                    .path("devenv.yaml")
-                    .r#ref(&push.r#ref)
-                    .send()
-                    .await
-                {
-                    Ok(content) if !content.items.is_empty() => {
-                        if let Some(content) = content.items[0].decoded_content() {
-                            Some(content)
-                        } else {
-                            tracing::warn!("Failed to decode devenv.yaml content");
-                            None
-                        }
-                    }
-                    _ => None,
-                };
+                let devenv_yaml_content = github_client
+                    .get_file_content(&owner_login, &repo_name, "devenv.yaml", &push.r#ref)
+                    .await;
 
                 // Parse devenv.yaml and get VM configurations
                 let yaml_str = devenv_yaml_content.as_deref().unwrap_or("");
@@ -410,19 +393,17 @@ async fn webhook(
                 let installation = GithubInstallation::get_for_owner_id(conn, db_owner.id).await?;
 
                 // Get an installation-authenticated client
-                let installation_client =
-                    JobGitHub::get_installation_client(&app_state, installation.id)?;
+                let github_client = crate::github::integration::GitHubApiClient::for_installation(
+                    &app_state,
+                    installation.id,
+                )?;
 
                 // Check if devenv.nix exists
-                let content_items = installation_client
-                    .repos(owner_name.clone(), repo.name.clone())
-                    .get_content()
-                    .path("devenv.nix")
-                    .r#ref(&ref_field)
-                    .send()
+                let devenv_nix_exists = github_client
+                    .file_exists(&owner_name, &repo.name, "devenv.nix", &ref_field)
                     .await?;
 
-                if !content_items.items.is_empty() {
+                if devenv_nix_exists {
                     // Get author and commit message from PR
                     let (author, message) = (
                         pr.pull_request
@@ -449,24 +430,9 @@ async fn webhook(
                     GitHubCommit::create(conn, github_commit.clone()).await?;
 
                     // Try to fetch devenv.yaml to determine VM configurations
-                    let devenv_yaml_content = match installation_client
-                        .repos(owner_name.clone(), repo.name.clone())
-                        .get_content()
-                        .path("devenv.yaml")
-                        .r#ref(&ref_field)
-                        .send()
-                        .await
-                    {
-                        Ok(content) if !content.items.is_empty() => {
-                            if let Some(content) = content.items[0].decoded_content() {
-                                Some(content)
-                            } else {
-                                tracing::warn!("Failed to decode devenv.yaml content");
-                                None
-                            }
-                        }
-                        _ => None,
-                    };
+                    let devenv_yaml_content = github_client
+                        .get_file_content(&owner_name, &repo.name, "devenv.yaml", &ref_field)
+                        .await;
 
                     // Parse devenv.yaml and get VM configurations
                     let yaml_str = devenv_yaml_content.as_deref().unwrap_or("");

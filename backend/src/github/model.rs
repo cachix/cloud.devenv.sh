@@ -1,4 +1,5 @@
 use crate::config::AppState;
+use crate::github::integration::{CreateCheckRunParams, GitHubApiClient, UpdateCheckRunParams};
 use crate::job::model::Job;
 use crate::schema::{
     github_commit, github_installation, github_instance, github_owner, github_repo, jobs,
@@ -418,17 +419,6 @@ pub trait SourceControlIntegration {
 }
 
 impl JobGitHub {
-    // Helper method to get a GitHub installation client for an owner
-    pub fn get_installation_client(
-        app_state: &AppState,
-        installation_id: i64,
-    ) -> Result<octocrab::Octocrab> {
-        let client = app_state
-            .github
-            .installation(octocrab::models::InstallationId(installation_id as u64))?;
-        Ok(client)
-    }
-
     async fn get_repo_and_owner(
         &self,
         conn: &mut diesel_async::AsyncPgConnection,
@@ -588,24 +578,21 @@ impl JobGitHub {
 
         // Get installation client
         let installation = GithubInstallation::get_for_owner_id(conn, owner.id).await?;
-        let installation_client = Self::get_installation_client(app_state, installation.id)?;
+        let github_client = GitHubApiClient::for_installation(app_state, installation.id)?;
 
-        // Create check run
-        let checks = installation_client.checks(&owner.login, &repo.name);
-        let details_url = format!(
-            "{}/github/{}/{}#{}",
-            app_state.config.base_url, owner.login, repo.name, job.id
-        );
-
-        let check_run = checks
-            .create_check_run(format!("devenv ({})", job.platform), &commit.rev)
-            .details_url(details_url)
-            .external_id(job.id)
-            .status(octocrab::params::checks::CheckRunStatus::Queued)
-            .send()
+        // Create check run via integration layer
+        let check_run_id = github_client
+            .create_check_run(CreateCheckRunParams {
+                owner_login: &owner.login,
+                repo_name: &repo.name,
+                job_id: job.id,
+                job_platform: &job.platform.to_string(),
+                rev: &commit.rev,
+                base_url: app_state.config.base_url.as_str(),
+            })
             .await?;
 
-        Ok(check_run.id.0 as i64)
+        Ok(check_run_id)
     }
 }
 
@@ -638,21 +625,22 @@ impl SourceControlIntegration for JobGitHub {
         let job_github = Self::get_job_by_id(conn, id).await?;
 
         let (repo, owner) = job_github.get_repo_and_owner(conn).await?;
+
         // Get an installation-authenticated client for the GitHub App
         let installation = GithubInstallation::get_for_owner_id(conn, owner.id).await?;
-        let installation_client = Self::get_installation_client(&app_state, installation.id)?;
+        let github_client = GitHubApiClient::for_installation(&app_state, installation.id)?;
 
-        let checks = installation_client.checks(&owner.login, &repo.name);
-        let check =
-            checks.update_check_run(octocrab::models::CheckRunId(job_github.check_run_id as u64));
+        let check_params = UpdateCheckRunParams {
+            owner_login: &owner.login,
+            repo_name: &repo.name,
+            check_run_id: job_github.check_run_id,
+        };
+
         match status {
             protocol::JobStatus::Queued => {}
             protocol::JobStatus::Running => {
-                let now = chrono::Utc::now();
-                check
-                    .status(octocrab::params::checks::CheckRunStatus::InProgress)
-                    .started_at(now)
-                    .send()
+                let now = github_client
+                    .set_check_run_in_progress(check_params)
                     .await?;
                 diesel::update(jobs::table)
                     .filter(jobs::id.eq(job_github.job_id))
@@ -660,30 +648,9 @@ impl SourceControlIntegration for JobGitHub {
                     .execute(conn)
                     .await?;
             }
-            protocol::JobStatus::Complete(completion_status) => {
-                let now = chrono::Utc::now();
-                let conclusion = match &completion_status {
-                    protocol::CompletionStatus::Cancelled => {
-                        octocrab::params::checks::CheckRunConclusion::Cancelled
-                    }
-                    protocol::CompletionStatus::Failed => {
-                        octocrab::params::checks::CheckRunConclusion::Failure
-                    }
-                    protocol::CompletionStatus::Success => {
-                        octocrab::params::checks::CheckRunConclusion::Success
-                    }
-                    protocol::CompletionStatus::TimedOut => {
-                        octocrab::params::checks::CheckRunConclusion::TimedOut
-                    }
-                    protocol::CompletionStatus::Skipped => {
-                        octocrab::params::checks::CheckRunConclusion::Skipped
-                    }
-                };
-                check
-                    .status(octocrab::params::checks::CheckRunStatus::Completed)
-                    .completed_at(now)
-                    .conclusion(conclusion)
-                    .send()
+            protocol::JobStatus::Complete(ref completion_status) => {
+                let now = github_client
+                    .set_check_run_completed(check_params, completion_status)
                     .await?;
                 diesel::update(jobs::table)
                     .filter(jobs::id.eq(job_github.job_id))
@@ -705,7 +672,6 @@ impl SourceControlIntegration for JobGitHub {
         let conn = &mut app_state.pool.get().await?;
 
         // Convert VM config platform to job platform
-        // Get platform enum for job creation and formatting
         let job_platform = match vm_config.platform {
             devenv_runner::protocol::Platform::X86_64Linux => {
                 crate::job::model::Platform::X86_64Linux
@@ -737,28 +703,24 @@ impl SourceControlIntegration for JobGitHub {
 
         // Get an installation-authenticated client for the GitHub App
         let installation = GithubInstallation::get_for_owner_id(conn, owner.id).await?;
-        let installation_client = Self::get_installation_client(&app_state, installation.id)?;
+        let github_client = GitHubApiClient::for_installation(&app_state, installation.id)?;
 
-        let checks = installation_client.checks(&owner.login, &repo.name);
-        // Create a details URL with a fragment pointing to the job UI
-        // Format: https://cloud.devenv.sh/github/{owner}/{repo}#{job_id}
-        let details_url = format!(
-            "{}/github/{}/{}#{}",
-            app_state.config.base_url, owner.login, repo.name, job.id
-        );
-
-        let check_run = checks
-            .create_check_run(format!("devenv ({})", job.platform), rev)
-            .details_url(details_url)
-            .external_id(job.id)
-            .status(octocrab::params::checks::CheckRunStatus::Queued)
-            .send()
+        // Create check run via integration layer
+        let check_run_id = github_client
+            .create_check_run(CreateCheckRunParams {
+                owner_login: &owner.login,
+                repo_name: &repo.name,
+                job_id: job.id,
+                job_platform: &job.platform.to_string(),
+                rev,
+                base_url: app_state.config.base_url.as_str(),
+            })
             .await?;
 
         let githubjob = diesel::insert_into(jobs_github::table)
             .values((
                 jobs_github::commit_id.eq(commit_id),
-                jobs_github::check_run_id.eq(check_run.id.0 as i64),
+                jobs_github::check_run_id.eq(check_run_id),
                 jobs_github::job_id.eq(job.id),
             ))
             .returning(JobGitHub::as_returning())
