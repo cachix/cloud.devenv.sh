@@ -10,7 +10,6 @@
   dotenv.enable = true;
 
   env = {
-    DATABASE_URL = "postgres:///devenv?host=${config.env.PGHOST}";
     RUST_LOG = "info";
   };
 

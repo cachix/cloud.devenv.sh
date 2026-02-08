@@ -100,14 +100,8 @@ in {
 - Secret: generate secure secret (use this as `webhook_secret` in config)
 
 3. In the GitHub app's general settings:
-   - Generate a new private key (use this in config as `app_private_key`)
+   - Generate a new private key
    - Generate a new client secret
-   - Save the client ID and client secret to `.env`.
-
-   ```shell
-   secretspec set --provider env GITHUB_OAUTH_CLIENT_ID="your-client-id"
-   secretspec set --provider env GITHUB_OAUTH_CLIENT_SECRET="your-client-secret"
-   ```
 
 4. Create `./cloud.devenv.toml`:
 
@@ -118,18 +112,7 @@ base_url = "https://<device-name>.<tailnet-name>.ts.net"
 app_name = "your-app-name" # The name of your GitHub app
 ```
 
-5. Configure development secrets using secretspec:
-
-   ```shell
-   secretspec set --provider env GITHUB_APP_PRIVATE_KEY="$(cat path/to/private-key.pem)"
-   secretspec set --provider env GITHUB_WEBHOOK_SECRET="your-webhook-secret"
-   ```
-
-6. Launch the processes
-
-   ```console
-   devenv up
-   ```
+5. Run `devenv up` — secretspec will prompt for any missing secrets (see `secretspec.toml` for descriptions of where to find each value).
 
 ### Migrations
 
@@ -151,4 +134,6 @@ secretspec set --provider vault POSTHOG_API_KEY="your-posthog-api-key"
 secretspec set --provider vault DATABASE_URL="your-production-db-url"
 secretspec set --provider vault GITHUB_APP_PRIVATE_KEY="$(cat path/to/private-key.pem)"
 secretspec set --provider vault GITHUB_WEBHOOK_SECRET="your-webhook-secret"
+secretspec set --provider vault GITHUB_OAUTH_CLIENT_ID="your-client-id"
+secretspec set --provider vault GITHUB_OAUTH_CLIENT_SECRET="your-client-secret"
 ```

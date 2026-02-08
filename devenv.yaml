@@ -24,4 +24,5 @@ allowUnfree: true
 imports:
   - ./runner/
   - ./nix/lightainer/
-secretspec: {}
+secretspec:
+  enable: true
