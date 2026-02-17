@@ -55,6 +55,7 @@
     # secretspec
     pkgs.secretspec
     pkgs.dbus
+    inputs.crate2nix.packages.${pkgs.system}.default
   ];
 
   languages = {
@@ -140,6 +141,7 @@
     excludes = [
       "frontend/generated-api"
       "frontend/elm-srcs.nix"
+      "Cargo.nix"
     ];
     hooks = {
       rustfmt.enable = true;
@@ -163,6 +165,11 @@
   '';
 
   tasks = {
+    "devenv:crate2nix" = {
+      exec = "crate2nix generate";
+      execIfModified = [ "Cargo.lock" ];
+      before = [ "devenv:enterShell" ];
+    };
     "frontend:elm2nix" = {
       exec = ''
         cd frontend && elm2nix convert > elm-srcs.nix && elm2nix snapshot
@@ -175,8 +182,11 @@
   outputs =
     let
       nixPkg = inputs.nix.packages.${pkgs.system}.nix;
+      rustToolchain = pkgs.rust-bin.stable.latest.default;
       backendPackages = pkgs.callPackage ./package.nix {
         nix = nixPkg;
+        rustc = rustToolchain;
+        cargo = rustToolchain;
       };
       frontendPackage = pkgs.callPackage ./frontend/package.nix {
         inherit (config.env) BASE_URL;
