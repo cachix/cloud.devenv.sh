@@ -7,6 +7,8 @@
 }:
 
 {
+  overlays = [ inputs.rust-overlay.overlays.default ];
+
   dotenv.enable = true;
 
   env = {
