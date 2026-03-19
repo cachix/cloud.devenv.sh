@@ -13,12 +13,11 @@ import Html.Attributes exposing (..)
 import Html.Events exposing (onClick)
 import Icons
 import Layout exposing (Layout)
-import Oidc.Model
 import RemoteData
 import Route exposing (Route)
 import Route.Path
 import Shared
-import Shared.Model exposing (Theme(..))
+import Shared.Model exposing (Theme(..), User)
 import Shared.Msg
 import Svg.Attributes
 import Url
@@ -346,31 +345,13 @@ viewHeader props model route toContentMsg =
         ]
 
 
-viewMobileUser : Oidc.Model.UserInfo -> (Msg -> contentMsg) -> Html contentMsg
-viewMobileUser userInfo toContentMsg =
-    let
-        avatarUsername =
-            Maybe.withDefault "" userInfo.preferred_username
-    in
+viewMobileUser : User -> (Msg -> contentMsg) -> Html contentMsg
+viewMobileUser user toContentMsg =
     div [ class "flex flex-col" ]
         [ div [ class "flex items-center px-4 py-2" ]
-            [ case userInfo.preferred_username of
-                Just username ->
-                    Components.GitHub.viewAvatar
-                        { username = username
-                        , size = "md"
-                        , extraClasses = "mr-2"
-                        }
-
-                Nothing ->
-                    img
-                        [ class "h-8 w-8 rounded-full mr-2"
-                        , src (getUserAvatarUrl userInfo)
-                        , alt "User avatar"
-                        ]
-                        []
+            [ viewAvatar "h-8 w-8 mr-2" user
             , span [ class "font-medium" ]
-                [ text (Maybe.withDefault "User" userInfo.given_name) ]
+                [ text (Maybe.withDefault "User" user.name) ]
             ]
         , a
             [ class "px-4 py-2 mt-2 text-red hover:bg-light dark:hover:bg-dark-border rounded-md"
@@ -382,8 +363,8 @@ viewMobileUser userInfo toContentMsg =
         ]
 
 
-viewUser : Oidc.Model.UserInfo -> Model -> (Msg -> contentMsg) -> Html contentMsg
-viewUser userInfo model toContentMsg =
+viewUser : User -> Model -> (Msg -> contentMsg) -> Html contentMsg
+viewUser user model toContentMsg =
     let
         dropdownItem icon name route =
             a [ class "block px-3 py-1.5 text-xs app-link hover:underline hover:cursor-pointer whitespace-nowrap", route ]
@@ -391,23 +372,9 @@ viewUser userInfo model toContentMsg =
 
         toggleButton =
             div [ class "flex items-center" ]
-                [ case userInfo.preferred_username of
-                    Just username ->
-                        Components.GitHub.viewAvatar
-                            { username = username
-                            , size = "sm"
-                            , extraClasses = "mr-2"
-                            }
-
-                    Nothing ->
-                        img
-                            [ class "h-6 w-6 rounded-full mr-2"
-                            , src (getUserAvatarUrl userInfo)
-                            , alt "User avatar"
-                            ]
-                            []
+                [ viewAvatar "h-6 w-6 mr-2" user
                 , span [ class "text-xs whitespace-normal break-normal" ]
-                    [ text (Maybe.withDefault "" userInfo.given_name) ]
+                    [ text (Maybe.withDefault "" user.name) ]
                 ]
 
         dropdownItems =
@@ -426,17 +393,24 @@ viewUser userInfo model toContentMsg =
         }
 
 
-getUserAvatarUrl : Oidc.Model.UserInfo -> String
-getUserAvatarUrl userInfo =
-    -- Use GitHub avatar for all users
-    case userInfo.preferred_username of
-        Just username ->
-            Components.GitHub.getAvatarUrl username
+viewAvatar : String -> User -> Html msg
+viewAvatar extraClasses user =
+    let
+        avatarUrl =
+            case user.avatarUrl of
+                Just url ->
+                    url
 
-        Nothing ->
-            -- Fallback to generating avatar using name
-            let
-                name =
-                    Maybe.withDefault "User" userInfo.given_name
-            in
-            "https://ui-avatars.com/api/?name=" ++ name ++ "&background=F7D15D&color=4A3E3D"
+                Nothing ->
+                    let
+                        name =
+                            Maybe.withDefault "User" user.name
+                    in
+                    "https://ui-avatars.com/api/?name=" ++ name ++ "&background=F7D15D&color=4A3E3D"
+    in
+    img
+        [ class ("rounded-full " ++ extraClasses)
+        , src avatarUrl
+        , alt "User avatar"
+        ]
+        []

@@ -2,7 +2,6 @@ use std::ops::Deref;
 use std::path::Path;
 use std::sync::Arc;
 
-use axum::extract::FromRef;
 use diesel_async::AsyncPgConnection;
 use diesel_async::async_connection_wrapper::AsyncConnectionWrapper;
 use diesel_async::pooled_connection::AsyncDieselConnectionManager;
@@ -13,17 +12,16 @@ use eyre::Result;
 use octocrab::Octocrab;
 use serde::{Deserialize, Serialize};
 use url::Url;
-use zitadel::axum::introspection::{IntrospectionState, IntrospectionStateBuilder};
-use zitadel::credentials::Application;
+
+use crate::oauth_store::PostgresUserStore;
 
 secretspec_derive::declare_secrets!("../secretspec.toml");
 
+/// Database connection pool type alias.
+pub type DbPool = Pool<AsyncPgConnection>;
+
 fn default_port() -> u16 {
     8080
-}
-
-fn default_zitadel_endpoint() -> Url {
-    "http://localhost:9500".parse().unwrap()
 }
 
 #[derive(Deserialize)]
@@ -31,8 +29,6 @@ pub struct Config {
     pub base_url: Url,
     #[serde(default = "default_port")]
     pub port: u16,
-    #[serde(default)]
-    pub zitadel: Zitadel,
     pub github: GitHub,
     #[serde(default)]
     pub job: Job,
@@ -58,7 +54,14 @@ impl Config {
             ));
         }
         let config_str = std::fs::read_to_string(config_path)?;
-        let config: Config = toml::from_str(&config_str)?;
+        let mut config: Config = toml::from_str(&config_str)?;
+
+        if let Ok(port_str) = std::env::var("PORT") {
+            config.port = port_str
+                .parse()
+                .map_err(|e| eyre::eyre!("Invalid PORT value: {}", e))?;
+        }
+
         Ok(config)
     }
 }
@@ -87,20 +90,6 @@ impl Default for Job {
     }
 }
 
-#[derive(Deserialize)]
-pub struct Zitadel {
-    #[serde(default = "default_zitadel_endpoint")]
-    pub endpoint: Url,
-}
-
-impl Default for Zitadel {
-    fn default() -> Self {
-        Self {
-            endpoint: default_zitadel_endpoint(),
-        }
-    }
-}
-
 #[derive(Clone)]
 pub struct AppState(Arc<InnerState>);
 
@@ -116,16 +105,10 @@ pub struct InnerState {
     pub config: Config,
     pub secrets: SecretSpec,
     pub pool: Pool<AsyncPgConnection>,
-    pub zitadel: IntrospectionState,
+    pub oauth_store: PostgresUserStore,
     pub github: Octocrab,
     pub posthog: Option<posthog_rs::Client>,
     pub runner_state: crate::runner::serve::RunnerState,
-}
-
-impl FromRef<AppState> for IntrospectionState {
-    fn from_ref(state: &AppState) -> Self {
-        state.0.zitadel.clone()
-    }
 }
 
 pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!();
@@ -149,22 +132,8 @@ impl AppState {
             .build()
             .map_err(|e| eyre::eyre!("Failed to create database pool: {}", e))?;
 
-        let zitadel = IntrospectionStateBuilder::new(
-            &config.zitadel.endpoint.origin().unicode_serialization(),
-        )
-        .with_jwt_profile(
-            secrets
-                .zitadel_jwt_profile
-                .as_ref()
-                .ok_or_else(|| eyre::eyre!("Zitadel JWT profile not configured"))
-                .and_then(|token| {
-                    Application::load_from_json(token)
-                        .map_err(|e| eyre::eyre!("Failed to load Zitadel JWT profile: {}", e))
-                })?,
-        )
-        .build()
-        .await
-        .map_err(|e| eyre::eyre!("Failed to configure Zitadel: {}", e))?;
+        // Create OAuth user store
+        let oauth_store = PostgresUserStore::new(pool.clone());
 
         let app_private_key = jsonwebtoken::EncodingKey::from_rsa_pem(
             secrets
@@ -196,7 +165,7 @@ impl AppState {
             config,
             secrets,
             pool,
-            zitadel,
+            oauth_store,
             github,
             posthog,
             runner_state,

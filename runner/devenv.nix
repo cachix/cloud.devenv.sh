@@ -6,9 +6,13 @@
   ...
 }:
 let
+  rustToolchain = pkgs.rust-bin.stable.latest.default;
+
   # Import our package definitions
   packages = pkgs.callPackage ../package.nix {
     nix = inputs.nix.packages.${pkgs.system}.nix;
+    rustc = rustToolchain;
+    cargo = rustToolchain;
   };
   # Extract binaries
   inherit (packages) devenv-init devenv-driver;
@@ -162,58 +166,6 @@ let
     ln -s ${nixStoreImage} $out/nix-store-image
   '';
 
-  # Create capability-wrapping function that can be used for both binaries
-  mkCapWrapper =
-    name: originalPath: capabilities:
-    pkgs.writeShellScriptBin name ''
-      #!/usr/bin/env bash
-      set -e
-
-      # Source binary path and local destination
-      ORIGINAL_BIN="${originalPath}"
-      LOCAL_BIN_DIR="$DEVENV_STATE/bin"
-      LOCAL_BIN="$LOCAL_BIN_DIR/${name}"
-
-      # Create local bin directory if it doesn't exist
-      mkdir -p "$LOCAL_BIN_DIR"
-
-      # Check if we need to copy the binary (doesn't exist or content differs)
-      if [ ! -f "$LOCAL_BIN" ] || ! cmp -s "$ORIGINAL_BIN" "$LOCAL_BIN"; then
-        echo "Copying ${name} to $LOCAL_BIN"
-        rm -f "$LOCAL_BIN"
-        cp "$ORIGINAL_BIN" "$LOCAL_BIN"
-        chmod +x "$LOCAL_BIN"
-      fi
-
-      # Check if the binary has the necessary capabilities by testing if any capabilities are set
-      CURRENT_CAPS=$(getcap "$LOCAL_BIN" 2>/dev/null || echo "")
-      if [ -z "$CURRENT_CAPS" ] || ! echo "$CURRENT_CAPS" | grep -q "cap_"; then
-        echo "${name} needs ${capabilities} capabilities." >&2
-        echo "" >&2
-        echo "Please run the following command to set them:" >&2
-        echo "" >&2
-        echo "  sudo setcap ${capabilities}=ep $LOCAL_BIN" >&2
-        echo "" >&2
-        exit 1
-      fi
-
-      # Execute the local binary with all arguments
-      exec "$LOCAL_BIN" "$@"
-    '';
-
-  # Create wrappers for both binaries
-  cloud-hypervisor-wrapper =
-    mkCapWrapper "cloud-hypervisor" "${pkgs.cloud-hypervisor}/bin/cloud-hypervisor"
-      "cap_net_admin,cap_sys_admin,cap_net_raw";
-
-  virtiofsd-wrapper =
-    mkCapWrapper "virtiofsd" "${pkgs.virtiofsd}/bin/virtiofsd"
-      "cap_chown,cap_dac_override,cap_fowner,cap_sys_admin";
-
-  nft-wrapper = mkCapWrapper "nft" "${pkgs.nftables}/bin/nft" "cap_net_admin";
-  libcap-wrapper = mkCapWrapper "libcap" "${pkgs.libcap}/bin/tuntap" "cap_net_admin";
-
-  sysctl-wrapper = mkCapWrapper "sysctl" "${pkgs.procps}/bin/sysctl" "cap_net_admin,cap_sys_admin";
 in
 {
   config = lib.mkMerge [
@@ -224,12 +176,14 @@ in
     }
     (lib.mkIf pkgs.stdenv.isLinux {
       env.RESOURCES_DIR = linuxResources;
-      packages = [
-        cloud-hypervisor-wrapper
-        virtiofsd-wrapper
-        nft-wrapper
-        libcap-wrapper
-        sysctl-wrapper
+
+      processes.runner.linux.capabilities = [
+        "cap_net_admin" # nft, sysctl, tuntap, cloud-hypervisor
+        "cap_net_raw" # cloud-hypervisor
+        "cap_sys_admin" # cloud-hypervisor, sysctl, virtiofsd
+        "cap_chown" # virtiofsd
+        "cap_dac_override" # virtiofsd
+        "cap_fowner" # virtiofsd
       ];
 
       outputs = {

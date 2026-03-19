@@ -7,10 +7,11 @@
 }:
 
 {
+  overlays = [ inputs.rust-overlay.overlays.default ];
+
   dotenv.enable = true;
 
   env = {
-    DATABASE_URL = "postgres:///devenv?host=${config.env.PGHOST}";
     RUST_LOG = "info";
   };
 
@@ -40,6 +41,7 @@
     inputs.nix.packages.${pkgs.system}.nix-flake-c
     inputs.nix.packages.${pkgs.system}.nix-cmd-c
     inputs.nix.packages.${pkgs.system}.nix-fetchers-c
+    inputs.nix.packages.${pkgs.system}.nix-main-c
     pkgs.boehmgc
     pkgs.rustPlatform.bindgenHook
     pkgs.openssl
@@ -55,6 +57,7 @@
     # secretspec
     pkgs.secretspec
     pkgs.dbus
+    inputs.crate2nix.packages.${pkgs.system}.default
   ];
 
   languages = {
@@ -73,47 +76,39 @@
     elm.enable = true;
   };
 
+  tasks."db:migrate" = {
+    exec = "cargo run -p devenv-backend migrate";
+    after = [ "devenv:processes:postgres" ];
+    before = [ "devenv:processes:backend" ];
+  };
+
   processes = {
-    backend-migrate = {
-      exec = ''
-        cargo run -p devenv-backend migrate && echo "Migrations completed"
-      '';
-      process-compose = {
-        depends_on.postgres.condition = "process_healthy";
-        depends_on.zitadel.condition = "process_healthy";
-      };
-    };
     backend = {
       exec = ''
-        cargo watch -w backend -x "run -p devenv-backend serve"
+        export PORT=${toString config.processes.backend.ports.http.value}
+        cargo watch -w backend -w oauth-kit -x "run -p devenv-backend serve"
       '';
-      process-compose = {
-        depends_on.postgres.condition = "process_healthy";
-        depends_on.zitadel.condition = "process_healthy";
-        depends_on.backend-migrate.condition = "process_completed_successfully";
-        readiness_probe = {
-          http_get = {
-            host = "127.0.0.1";
-            port = 8080;
-            path = "/metrics";
-          };
-        };
+      ports.http.allocate = 8080;
+      after = [ "devenv:processes:postgres" ];
+      ready.http.get = {
+        host = "127.0.0.1";
+        port = config.processes.backend.ports.http.value;
+        path = "/metrics";
       };
     };
     frontend = {
       exec = "cd frontend && elm-land server";
-      process-compose = {
-        readiness_probe = {
-          http_get = {
-            host = "127.0.0.1";
-            port = 1234;
-            path = "/";
-          };
-        };
+      after = [ "devenv:processes:backend" ];
+      env.PORT = toString config.processes.frontend.ports.http.value;
+      ports.http.allocate = 1234;
+      ready.http.get = {
+        host = "127.0.0.1";
+        port = config.processes.frontend.ports.http.value;
+        path = "/";
       };
     };
     runner.exec = ''
-      cargo watch -w runner -x "build -p devenv-runner --bin devenv-runner" -s "${lib.optionalString pkgs.stdenv.isDarwin "codesign --force --entitlements runner/resources/runner.entitlements --sign - target/debug/devenv-runner && "}target/debug/devenv-runner --host ws://127.0.0.1:8080"
+      cargo watch -w runner -x "build -p devenv-runner --bin devenv-runner" -s "${lib.optionalString pkgs.stdenv.isDarwin "codesign --force --entitlements runner/resources/runner.entitlements --sign - target/debug/devenv-runner && "}target/debug/devenv-runner --host ws://127.0.0.1:${toString config.processes.backend.ports.http.value}"
     '';
     generate-elm.exec = ''
       cargo watch -w backend -x "run -p devenv-backend generate-elm"
@@ -121,6 +116,75 @@
     logger.exec = ''
       cargo watch -w logger -x "run -p devenv-logger --bin server"
     '';
+  };
+
+  files."frontend/elm-land.json".json = {
+    app = {
+      elm = {
+        development = {
+          debugger = true;
+        };
+        production = {
+          debugger = false;
+        };
+      };
+      env = [
+        "BASE_URL"
+      ];
+      html = {
+        attributes = {
+          html = {
+            lang = "en";
+          };
+          head = { };
+        };
+        title = "Devenv Cloud";
+        meta = [
+          { charset = "UTF-8"; }
+          {
+            http-equiv = "X-UA-Compatible";
+            content = "IE=edge";
+          }
+          {
+            name = "viewport";
+            content = "width=device-width, initial-scale=1.0";
+          }
+        ];
+        link = [
+          {
+            rel = "icon";
+            type = "image/x-icon";
+            href = "/favicon.svg";
+          }
+          {
+            rel = "stylesheet";
+            href = "https://fonts.googleapis.com/css2?family=Mulish:wght@100;200;300;400;500;600;700;800;900;1000&display=swap";
+          }
+        ];
+        script = [
+          {
+            type = "text/javascript";
+            innerHTML = ''
+              // Immediately set theme on page load to prevent flash
+              (function() {
+                var savedTheme = localStorage.getItem('theme');
+                var theme = savedTheme ? JSON.parse(savedTheme) :
+                    (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+
+                if (theme === 'dark') {
+                  document.documentElement.classList.add('dark');
+                }
+              })();'';
+          }
+        ];
+      };
+      router = {
+        useHashRouting = false;
+      };
+      proxy = {
+        "/api" = "http://localhost:${toString config.processes.backend.ports.http.value}";
+      };
+    };
   };
 
   services = {
@@ -136,13 +200,13 @@
       enable = true;
       target = "localhost:1234";
     };
-    zitadel.enable = true;
   };
 
   git-hooks = {
     excludes = [
       "frontend/generated-api"
       "frontend/elm-srcs.nix"
+      "Cargo.nix"
     ];
     hooks = {
       rustfmt.enable = true;
@@ -166,6 +230,11 @@
   '';
 
   tasks = {
+    "devenv:crate2nix" = {
+      exec = "crate2nix generate";
+      execIfModified = [ "Cargo.lock" ];
+      before = [ "devenv:enterShell" ];
+    };
     "frontend:elm2nix" = {
       exec = ''
         cd frontend && elm2nix convert > elm-srcs.nix && elm2nix snapshot
@@ -178,11 +247,14 @@
   outputs =
     let
       nixPkg = inputs.nix.packages.${pkgs.system}.nix;
+      rustToolchain = pkgs.rust-bin.stable.latest.default;
       backendPackages = pkgs.callPackage ./package.nix {
         nix = nixPkg;
+        rustc = rustToolchain;
+        cargo = rustToolchain;
       };
       frontendPackage = pkgs.callPackage ./frontend/package.nix {
-        inherit (config.env) BASE_URL OAUTH_AUDIENCE OAUTH_CLIENT_ID;
+        inherit (config.env) BASE_URL;
       };
     in
     {
@@ -234,9 +306,6 @@
                   [github]
                   app_name="devenv-cloud"
                   app_id = 1897971
-
-                  [zitadel]
-                  endpoint = "https://auth.devenv.sh"
                 '';
                 destination = "/etc/cloud.devenv.toml";
               })
@@ -292,21 +361,4 @@
     ];
   };
 
-  containers."zitadel" = config.lib.mkLightainer {
-    name = "devenv-cloud-zitadel";
-    tag = "latest";
-    entrypoint = lib.splitString " " (
-      lib.replaceStrings [ "\\\n" "  " ] [ " " " " ] (
-        lib.replaceStrings [ "\n" ] [ " " ] config.processes.zitadel.exec
-      )
-    );
-    layers = [
-      {
-        deps = [
-          config.services.zitadel.package
-          pkgs.bash
-        ];
-      }
-    ];
-  };
 }

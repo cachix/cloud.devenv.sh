@@ -1,23 +1,19 @@
 module Shared.Msg exposing (Msg(..))
 
 import Api.Data as Api
-import Json.Decode
-import Oidc.Msg as Oidc
+import Http
 import RemoteData exposing (WebData)
-import Shared.Model exposing (Theme)
+import Shared.Model exposing (Theme, User)
 import Time
 
 
 type Msg
     = UpdateNow Time.Posix
     | GetConfigResponse (WebData Api.FrontendConfig)
-      -- INCOMING PORT
-    | IncomingMsgReceived Json.Decode.Value
       -- AUTH
-    | OAuthMsg Oidc.Msg
     | SignIn
     | SignOut
-    | TokenRefreshTick Time.Posix
+    | GotUser (Result Http.Error User)
       -- THEME
     | ToggleTheme
     | SetTheme Theme

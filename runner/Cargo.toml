@@ -60,14 +60,17 @@ pid1 = "0.1.4"
 [[bin]]
 name = "devenv-runner"
 path = "src/bin/runner.rs"
+required-features = ["client"]
 
 [[bin]]
 name = "devenv-driver"
 path = "src/bin/driver.rs"
+required-features = ["client"]
 
 [[bin]]
 name = "devenv-launcher"
 path = "src/bin/launcher.rs"
+required-features = ["client"]
 
 # Static linking dependency still needed for other binaries
 [target.'cfg(target_os = "linux")'.build-dependencies]

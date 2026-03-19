@@ -1,16 +1,15 @@
 inputs:
-  fenix:
-    url: github:nix-community/fenix
-    inputs:
-      nixpkgs:
-        follows: nixpkgs
-  mk-shell-bin:
-    url: github:rrbutani/nix-mk-shell-bin
+  devenv:
+    url: github:cachix/devenv/devenv-caps?dir=src/modules
+  crate2nix:
+    url: github:nix-community/crate2nix
   git-hooks:
     url: github:cachix/git-hooks.nix
     inputs:
       nixpkgs:
         follows: nixpkgs
+  mk-shell-bin:
+    url: github:rrbutani/nix-mk-shell-bin
   nix:
     url: github:cachix/nix/devenv-2.32
   nix2container:
@@ -20,9 +19,14 @@ inputs:
         follows: nixpkgs
   nixpkgs:
     url: github:cachix/devenv-nixpkgs/rolling
+  rust-overlay:
+    url: github:oxalica/rust-overlay
+    inputs:
+      nixpkgs:
+        follows: nixpkgs
 allowUnfree: true
 imports:
   - ./runner/
-  - ./nix/zitadel/service.nix
   - ./nix/lightainer/
-secretspec: {}
+secretspec:
+  enable: true

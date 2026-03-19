@@ -26,7 +26,6 @@ module Api.Request.Default exposing
     , metrics
     , retryJob
     , webhook
-    , webhookEndpoint
     )
 
 import Api
@@ -183,16 +182,4 @@ webhook =
         []
         Nothing
         Api.Data.anyTypeDecoder
-
-
-webhookEndpoint : Api.Request ()
-webhookEndpoint =
-    Api.request
-        "POST"
-        "/api/v1/zitadel/actions/webhook"
-        []
-        []
-        []
-        Nothing
-        (Json.Decode.succeed ())
 

@@ -34,11 +34,11 @@ init shared _ =
     case shared.user of
         RemoteData.Success userInfo ->
             -- Redirect authenticated users to their dashboard
-            case userInfo.preferred_username of
-                Just username ->
+            case userInfo.name of
+                Just name ->
                     ( {}
                     , Effect.replaceRoute
-                        { path = Route.Path.Github_Owner_ { owner = username }
+                        { path = Route.Path.Github_Owner_ { owner = name }
                         , query = Dict.empty
                         , hash = Nothing
                         }

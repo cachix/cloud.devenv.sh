@@ -29,7 +29,7 @@ onPageLoad shared route =
             Auth.Action.loadCustomPage
 
         RemoteData.Success user ->
-            if user.beta_access then
+            if user.betaAccess then
                 Auth.Action.loadPageWithUser user
 
             else
