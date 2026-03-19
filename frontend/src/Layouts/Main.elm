@@ -349,22 +349,7 @@ viewMobileUser : User -> (Msg -> contentMsg) -> Html contentMsg
 viewMobileUser user toContentMsg =
     div [ class "flex flex-col" ]
         [ div [ class "flex items-center px-4 py-2" ]
-            [ case user.avatarUrl of
-                Just avatarUrl ->
-                    img
-                        [ class "h-8 w-8 rounded-full mr-2"
-                        , src avatarUrl
-                        , alt "User avatar"
-                        ]
-                        []
-
-                Nothing ->
-                    img
-                        [ class "h-8 w-8 rounded-full mr-2"
-                        , src (getUserAvatarUrl user)
-                        , alt "User avatar"
-                        ]
-                        []
+            [ viewAvatar "h-8 w-8 mr-2" user
             , span [ class "font-medium" ]
                 [ text (Maybe.withDefault "User" user.name) ]
             ]
@@ -387,22 +372,7 @@ viewUser user model toContentMsg =
 
         toggleButton =
             div [ class "flex items-center" ]
-                [ case user.avatarUrl of
-                    Just avatarUrl ->
-                        img
-                            [ class "h-6 w-6 rounded-full mr-2"
-                            , src avatarUrl
-                            , alt "User avatar"
-                            ]
-                            []
-
-                    Nothing ->
-                        img
-                            [ class "h-6 w-6 rounded-full mr-2"
-                            , src (getUserAvatarUrl user)
-                            , alt "User avatar"
-                            ]
-                            []
+                [ viewAvatar "h-6 w-6 mr-2" user
                 , span [ class "text-xs whitespace-normal break-normal" ]
                     [ text (Maybe.withDefault "" user.name) ]
                 ]
@@ -423,16 +393,24 @@ viewUser user model toContentMsg =
         }
 
 
-getUserAvatarUrl : User -> String
-getUserAvatarUrl user =
-    -- Use avatar URL if available, otherwise generate from name
-    case user.avatarUrl of
-        Just url ->
-            url
+viewAvatar : String -> User -> Html msg
+viewAvatar extraClasses user =
+    let
+        avatarUrl =
+            case user.avatarUrl of
+                Just url ->
+                    url
 
-        Nothing ->
-            let
-                name =
-                    Maybe.withDefault "User" user.name
-            in
-            "https://ui-avatars.com/api/?name=" ++ name ++ "&background=F7D15D&color=4A3E3D"
+                Nothing ->
+                    let
+                        name =
+                            Maybe.withDefault "User" user.name
+                    in
+                    "https://ui-avatars.com/api/?name=" ++ name ++ "&background=F7D15D&color=4A3E3D"
+    in
+    img
+        [ class ("rounded-full " ++ extraClasses)
+        , src avatarUrl
+        , alt "User avatar"
+        ]
+        []

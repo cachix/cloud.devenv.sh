@@ -14,6 +14,11 @@ use uuid::Uuid;
 use crate::config::DbPool;
 use crate::schema::{accounts, oauth_account};
 
+/// Convert a `serde_json::Value::Null` to `None`, otherwise wrap in `Some`.
+fn nullable_json(value: serde_json::Value) -> Option<serde_json::Value> {
+    if value.is_null() { None } else { Some(value) }
+}
+
 /// Error type for PostgreSQL user store operations.
 #[derive(Debug, Error)]
 pub enum PostgresStoreError {
@@ -38,6 +43,19 @@ impl PostgresUserStore {
     /// Creates a new PostgresUserStore with the given database connection pool.
     pub fn new(pool: DbPool) -> Self {
         Self { pool }
+    }
+
+    /// Get a database connection from the pool.
+    async fn conn(
+        &self,
+    ) -> Result<
+        diesel_async::pooled_connection::bb8::PooledConnection<'_, diesel_async::AsyncPgConnection>,
+        PostgresStoreError,
+    > {
+        self.pool
+            .get()
+            .await
+            .map_err(|e| PostgresStoreError::Pool(e.to_string()))
     }
 }
 
@@ -83,11 +101,7 @@ impl UserStore for PostgresUserStore {
     /// 2. If found, returns the linked account_id
     /// 3. If not found, creates a new account and oauth_account link in a transaction
     async fn find_or_create(&self, user: &User, provider: &str) -> Result<Uuid, Self::Error> {
-        let mut conn = self
-            .pool
-            .get()
-            .await
-            .map_err(|e| PostgresStoreError::Pool(e.to_string()))?;
+        let mut conn = self.conn().await?;
 
         // Try to find existing OAuth account link
         let existing: Option<OAuthAccountLookup> = oauth_account::table
@@ -147,11 +161,7 @@ impl UserStore for PostgresUserStore {
                         provider: provider_owned,
                         provider_account_id: user_id,
                         provider_email: user_email,
-                        raw_profile: if user_raw.is_null() {
-                            None
-                        } else {
-                            Some(user_raw)
-                        },
+                        raw_profile: nullable_json(user_raw),
                     };
 
                     diesel::insert_into(oauth_account::table)
@@ -182,11 +192,7 @@ impl UserStore for PostgresUserStore {
         user: &User,
         provider: &str,
     ) -> Result<(), Self::Error> {
-        let mut conn = self
-            .pool
-            .get()
-            .await
-            .map_err(|e| PostgresStoreError::Pool(e.to_string()))?;
+        let mut conn = self.conn().await?;
 
         let oauth_account_id = Uuid::now_v7();
         let new_oauth_account = NewOAuthAccount {
@@ -195,11 +201,7 @@ impl UserStore for PostgresUserStore {
             provider: provider.to_string(),
             provider_account_id: user.id.clone(),
             provider_email: user.email.clone(),
-            raw_profile: if user.raw.is_null() {
-                None
-            } else {
-                Some(user.raw.clone())
-            },
+            raw_profile: nullable_json(user.raw.clone()),
         };
 
         diesel::insert_into(oauth_account::table)

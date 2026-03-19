@@ -130,8 +130,6 @@
       };
       env = [
         "BASE_URL"
-        "OAUTH_CLIENT_ID"
-        "OAUTH_AUDIENCE"
       ];
       html = {
         attributes = {
