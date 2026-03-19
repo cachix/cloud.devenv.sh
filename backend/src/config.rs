@@ -54,7 +54,14 @@ impl Config {
             ));
         }
         let config_str = std::fs::read_to_string(config_path)?;
-        let config: Config = toml::from_str(&config_str)?;
+        let mut config: Config = toml::from_str(&config_str)?;
+
+        if let Ok(port_str) = std::env::var("PORT") {
+            config.port = port_str
+                .parse()
+                .map_err(|e| eyre::eyre!("Invalid PORT value: {}", e))?;
+        }
+
         Ok(config)
     }
 }
