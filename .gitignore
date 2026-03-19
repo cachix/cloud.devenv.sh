@@ -6,6 +6,7 @@
 devenv.local.nix
 target
 cloud.devenv.toml
+frontend/elm-land.json
 TODO
 
 # Terraform

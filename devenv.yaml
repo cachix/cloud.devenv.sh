@@ -1,4 +1,6 @@
 inputs:
+  devenv:
+    url: github:cachix/devenv/devenv-caps?dir=src/modules
   crate2nix:
     url: github:nix-community/crate2nix
   git-hooks:
