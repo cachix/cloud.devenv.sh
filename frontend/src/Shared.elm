@@ -111,6 +111,7 @@ userDecoder : Json.Decode.Decoder Shared.Model.User
 userDecoder =
     Json.Decode.succeed Shared.Model.User
         |> Decode.required "user_id" Json.Decode.string
+        |> Decode.optional "username" (Json.Decode.nullable Json.Decode.string) Nothing
         |> Decode.optional "name" (Json.Decode.nullable Json.Decode.string) Nothing
         |> Decode.optional "email" (Json.Decode.nullable Json.Decode.string) Nothing
         |> Decode.optional "avatar_url" (Json.Decode.nullable Json.Decode.string) Nothing
@@ -140,10 +141,10 @@ update route msg model =
                     , -- Redirect authenticated users from landing page to their dashboard
                       case route.path of
                         Route.Path.Home_ ->
-                            case user.name of
-                                Just name ->
+                            case user.username of
+                                Just username ->
                                     Effect.replaceRoute
-                                        { path = Route.Path.Github_Owner_ { owner = name }
+                                        { path = Route.Path.Github_Owner_ { owner = username }
                                         , query = route.query
                                         , hash = route.hash
                                         }

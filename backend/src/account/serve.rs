@@ -24,6 +24,7 @@ pub async fn get_account(
     // Return user information from local database
     let user_info = serde_json::json!({
         "user_id": user.account_id.to_string(),
+        "username": user.username,
         "name": user.name,
         "email": user.email,
         "avatar_url": user.avatar_url,

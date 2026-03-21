@@ -8,6 +8,7 @@ import Time
 
 type alias User =
     { userId : String
+    , username : Maybe String
     , name : Maybe String
     , email : Maybe String
     , avatarUrl : Maybe String
