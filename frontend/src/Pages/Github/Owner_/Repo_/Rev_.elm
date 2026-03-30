@@ -4,7 +4,6 @@ import Api
 import Api.Data as Api
 import Api.Request.Default as Api
 import Auth
-import Browser.Dom as Dom
 import Components.Breadcrumbs exposing (Breadcrumbs)
 import Components.CommitJobs
 import Components.Job exposing (JobViewMsg(..))

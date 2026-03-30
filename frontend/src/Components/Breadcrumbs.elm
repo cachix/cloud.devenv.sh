@@ -1,7 +1,6 @@
 module Components.Breadcrumbs exposing
     ( Breadcrumb
     , Breadcrumbs
-    , add
     , forCommit
     , forDashboard
     , forOwner
@@ -19,9 +18,7 @@ module Components.Breadcrumbs exposing
 import Components.GitHub
 import Html exposing (..)
 import Html.Attributes exposing (..)
-import Icons
 import Route.Path
-import Svg.Attributes
 
 
 type Separator
@@ -56,16 +53,6 @@ new =
         { items = []
         , containerClass = "flex items-center text-sm gap-2"
         }
-
-
-add : String -> Maybe String -> Breadcrumbs msg -> Breadcrumbs msg
-add label maybeHref breadcrumbs =
-    case maybeHref of
-        Just _ ->
-            withText label breadcrumbs
-
-        Nothing ->
-            withText label breadcrumbs
 
 
 withText : String -> Breadcrumbs msg -> Breadcrumbs msg
@@ -206,44 +193,19 @@ forDashboard =
 
 forOwner : { owner : String } -> Breadcrumbs msg
 forOwner params =
-    let
-        ownerAvatarConfig =
-            { username = params.owner
-            , size = "sm"
-            , extraClasses = ""
-            }
-    in
     new
-        |> withRouteAndAvatar params.owner (Route.Path.Github_Owner_ { owner = params.owner }) ownerAvatarConfig
+        |> withRouteAndAvatar params.owner
+            (Route.Path.Github_Owner_ { owner = params.owner })
+            { username = params.owner, size = "sm", extraClasses = "" }
 
 
 forRepository : { owner : String, repo : String } -> Breadcrumbs msg
 forRepository params =
-    let
-        ownerAvatarConfig =
-            { username = params.owner
-            , size = "sm"
-            , extraClasses = ""
-            }
-    in
-    new
-        |> withRouteAndAvatar params.owner (Route.Path.Github_Owner_ { owner = params.owner }) ownerAvatarConfig
+    forOwner { owner = params.owner }
         |> withRoute params.repo (Route.Path.Github_Owner__Repo_ { owner = params.owner, repo = params.repo })
 
 
 forCommit : { owner : String, repo : String, rev : String } -> Breadcrumbs msg
 forCommit params =
-    let
-        ownerAvatarConfig =
-            { username = params.owner
-            , size = "sm"
-            , extraClasses = ""
-            }
-
-        shortRev =
-            String.left 7 params.rev
-    in
-    new
-        |> withRouteAndAvatar params.owner (Route.Path.Github_Owner_ { owner = params.owner }) ownerAvatarConfig
-        |> withRoute params.repo (Route.Path.Github_Owner__Repo_ { owner = params.owner, repo = params.repo })
-        |> withText shortRev
+    forRepository { owner = params.owner, repo = params.repo }
+        |> withText (String.left 7 params.rev)

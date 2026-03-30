@@ -25,7 +25,6 @@ module Components.Label exposing
 
 import Html exposing (..)
 import Html.Attributes exposing (..)
-import Html.Events exposing (..)
 
 
 type Type msg
@@ -227,23 +226,4 @@ viewSingleLabel (Label settings) =
 
             Nothing ->
                 [ text settings.text ]
-        )
-
-
-{-| Creates a rev@branch label, properly styled and linked to GitHub
--}
-viewRevBranch : { rev : String, ref : String, owner : String, repo : String } -> Html msg
-viewRevBranch { rev, ref, owner, repo } =
-    view
-        (new { text = "" }
-            |> asCombined
-                [ new { text = String.left 7 rev }
-                    |> asLink ("https://github.com/" ++ owner ++ "/" ++ repo ++ "/commit/" ++ rev)
-                    |> withClass "rounded-l"
-                , new { text = "@" }
-                    |> withClass "px-0"
-                , new { text = ref }
-                    |> asLink ("https://github.com/" ++ owner ++ "/" ++ repo ++ "/tree/" ++ ref)
-                    |> withClass "rounded-r"
-                ]
         )

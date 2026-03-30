@@ -15,8 +15,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = create_app(shared_state);
 
     // Start the server
-    let listener = TcpListener::bind("0.0.0.0:3000").await.unwrap();
-    println!("Listening on http://{}", listener.local_addr().unwrap());
-    axum::serve(listener, app).await.unwrap();
+    let port = std::env::var("PORT").unwrap_or_else(|_| "3000".to_string());
+    let addr = format!("0.0.0.0:{}", port);
+    let listener = TcpListener::bind(&addr).await?;
+    println!("Listening on http://{}", listener.local_addr()?);
+    axum::serve(listener, app).await?;
     Ok(())
 }

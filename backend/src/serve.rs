@@ -103,7 +103,7 @@ async fn serve(app_state: AppState) -> Result<()> {
 
     let addr = format!("0.0.0.0:{}", app_state.config.port);
     tracing::info!("Listening on {}", addr);
-    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+    let listener = tokio::net::TcpListener::bind(addr).await?;
 
     // Build the API router
     let (api_router, _) = router().split_for_parts();
@@ -142,8 +142,7 @@ pub fn main(config: Config) -> Result<()> {
     // Create runtime and run everything in one block_on
     tokio::runtime::Builder::new_multi_thread()
         .enable_all()
-        .build()
-        .unwrap()
+        .build()?
         .block_on(async {
             let app_state = AppState::new(config, secrets).await?;
             serve(app_state).await

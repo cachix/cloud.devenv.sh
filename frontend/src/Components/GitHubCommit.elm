@@ -15,9 +15,7 @@ import Components.GitHub
 import Components.Label as Label
 import Html exposing (..)
 import Html.Attributes exposing (..)
-import Html.Events exposing (onClick)
 import Icons
-import Route
 import Route.Path
 import Svg.Attributes
 

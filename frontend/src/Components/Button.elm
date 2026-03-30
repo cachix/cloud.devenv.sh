@@ -21,7 +21,6 @@ module Components.Button exposing
 
 import Html exposing (..)
 import Html.Attributes exposing (..)
-import Html.Events exposing (..)
 import Html.Events.Extra exposing (..)
 import RemoteData exposing (RemoteData)
 import Route.Path

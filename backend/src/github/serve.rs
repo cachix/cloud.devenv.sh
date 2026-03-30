@@ -19,6 +19,63 @@ use utoipa_axum::{router::OpenApiRouter, routes};
 
 use super::model::JobGitHub;
 
+fn extract_full_account(installation: EventInstallation) -> Result<octocrab::models::Author> {
+    match installation {
+        EventInstallation::Full(inst) => Ok(inst.account),
+        EventInstallation::Minimal(_) => {
+            Err(eyre!("Expected full installation payload but got minimal"))
+        }
+    }
+}
+
+async fn fetch_devenv_yaml(
+    client: &octocrab::Octocrab,
+    owner: &str,
+    repo: &str,
+    git_ref: &str,
+) -> Option<String> {
+    match client
+        .repos(owner, repo)
+        .get_content()
+        .path("devenv.yaml")
+        .r#ref(git_ref)
+        .send()
+        .await
+    {
+        Ok(content) if !content.items.is_empty() => {
+            content.items[0].decoded_content().or_else(|| {
+                tracing::warn!("Failed to decode devenv.yaml content");
+                None
+            })
+        }
+        _ => None,
+    }
+}
+
+async fn create_commit_and_jobs(
+    conn: &mut diesel_async::AsyncPgConnection,
+    app_state: &AppState,
+    client: &octocrab::Octocrab,
+    owner: &str,
+    repo: &str,
+    git_ref: &str,
+    commit: GitHubCommit,
+) -> Result<()> {
+    GitHubCommit::create(conn, commit.clone()).await?;
+
+    let devenv_yaml_content = fetch_devenv_yaml(client, owner, repo, git_ref).await;
+
+    let yaml_str = devenv_yaml_content.as_deref().unwrap_or("");
+    let cloud_config = crate::runner::cloudconfig::FinalCloud::new(yaml_str)
+        .map_err(|e| eyre!("Failed to parse devenv.yaml: {}", e))?;
+    let vms = cloud_config.into_vms();
+
+    for vm in vms {
+        commit.create_job(app_state.clone(), vm).await?;
+    }
+    Ok(())
+}
+
 #[utoipa::path(get, path = "/repos", responses((status = OK, body = Vec<OwnerWithRepos>)))]
 async fn get_repos(
     State(app_state): State<AppState>,
@@ -78,8 +135,7 @@ async fn get_repos(
                             let jobs = all_jobs
                                 .iter()
                                 .map(|(job, job_github)| {
-                                    let log_url =
-                                        format!("{}/{}", app_state.config.logger_url, job.id);
+                                    let log_url = job.log_url(&app_state.config.logger_url);
                                     JobResponse {
                                         github: job_github.clone(),
                                         job: job.clone(),
@@ -158,7 +214,7 @@ async fn get_rev(
         .into_iter()
         .map(|(github, job)| {
             // Generate a log URL for this job
-            let log_url = format!("{}/{}", app_state.config.logger_url, job.id);
+            let log_url = job.log_url(&app_state.config.logger_url);
             JobResponse {
                 github,
                 job,
@@ -219,12 +275,7 @@ async fn webhook(
 
     match event.specific {
         WebhookEventPayload::Installation(installation_payload) => {
-            let account = match installation {
-                EventInstallation::Full(installation) => installation.account,
-                EventInstallation::Minimal(_) => {
-                    panic!("can't happen")
-                }
-            };
+            let account = extract_full_account(installation)?;
             match installation_payload.action {
                 InstallationWebhookEventAction::Created => {
                     let owner = GithubOwner {
@@ -270,11 +321,7 @@ async fn webhook(
             }
         }
         WebhookEventPayload::InstallationRepositories(installation_repos) => {
-            let account = if let EventInstallation::Full(installation) = installation {
-                installation.account
-            } else {
-                panic!("can't happen")
-            };
+            let account = extract_full_account(installation)?;
 
             for repo in installation_repos.repositories_added {
                 GitHubRepo::create_from_webhook(
@@ -346,7 +393,6 @@ async fn webhook(
                     (String::from("Unknown"), String::from("No message provided"))
                 };
 
-                // Create the commit record
                 let github_commit = GitHubCommit {
                     id: uuid::Uuid::now_v7(),
                     rev: push.after,
@@ -356,39 +402,16 @@ async fn webhook(
                     message,
                 };
 
-                // Insert the commit into the database
-                GitHubCommit::create(conn, github_commit.clone()).await?;
-
-                // Try to fetch devenv.yaml to determine VM configurations
-                let devenv_yaml_content = match installation_client
-                    .repos(owner_login.clone(), repo_name.clone())
-                    .get_content()
-                    .path("devenv.yaml")
-                    .r#ref(&push.r#ref)
-                    .send()
-                    .await
-                {
-                    Ok(content) if !content.items.is_empty() => {
-                        if let Some(content) = content.items[0].decoded_content() {
-                            Some(content)
-                        } else {
-                            tracing::warn!("Failed to decode devenv.yaml content");
-                            None
-                        }
-                    }
-                    _ => None,
-                };
-
-                // Parse devenv.yaml and get VM configurations
-                let yaml_str = devenv_yaml_content.as_deref().unwrap_or("");
-                let cloud_config = crate::runner::cloudconfig::FinalCloud::new(yaml_str)
-                    .map_err(|e| eyre!("Failed to parse devenv.yaml: {}", e))?;
-                let vms = cloud_config.into_vms();
-
-                // Create a job for each VM configuration
-                for vm in vms {
-                    github_commit.create_job(app_state.clone(), vm).await?;
-                }
+                create_commit_and_jobs(
+                    conn,
+                    &app_state,
+                    &installation_client,
+                    &owner_login,
+                    &repo_name,
+                    &push.r#ref,
+                    github_commit,
+                )
+                .await?;
             }
         }
         WebhookEventPayload::PullRequest(pr) => match pr.action {
@@ -445,39 +468,16 @@ async fn webhook(
                         message,
                     };
 
-                    // Insert the commit into the database
-                    GitHubCommit::create(conn, github_commit.clone()).await?;
-
-                    // Try to fetch devenv.yaml to determine VM configurations
-                    let devenv_yaml_content = match installation_client
-                        .repos(owner_name.clone(), repo.name.clone())
-                        .get_content()
-                        .path("devenv.yaml")
-                        .r#ref(&ref_field)
-                        .send()
-                        .await
-                    {
-                        Ok(content) if !content.items.is_empty() => {
-                            if let Some(content) = content.items[0].decoded_content() {
-                                Some(content)
-                            } else {
-                                tracing::warn!("Failed to decode devenv.yaml content");
-                                None
-                            }
-                        }
-                        _ => None,
-                    };
-
-                    // Parse devenv.yaml and get VM configurations
-                    let yaml_str = devenv_yaml_content.as_deref().unwrap_or("");
-                    let cloud_config = crate::runner::cloudconfig::FinalCloud::new(yaml_str)
-                        .map_err(|e| eyre!("Failed to parse devenv.yaml: {}", e))?;
-                    let vms = cloud_config.into_vms();
-
-                    // Create a job for each VM configuration
-                    for vm in vms {
-                        github_commit.create_job(app_state.clone(), vm).await?;
-                    }
+                    create_commit_and_jobs(
+                        conn,
+                        &app_state,
+                        &installation_client,
+                        &owner_name,
+                        &repo.name,
+                        &ref_field,
+                        github_commit,
+                    )
+                    .await?;
                 }
             }
             _ => {}
@@ -529,7 +529,7 @@ async fn get_repo_jobs(
             .or_insert_with(Vec::new)
             .push({
                 // Generate a log URL for this job
-                let log_url = format!("{}/{}", app_state.config.logger_url, job.id);
+                let log_url = job.log_url(&app_state.config.logger_url);
                 let commit = GitHubCommit::get_by_id(conn, github_job.commit_id)
                     .await
                     .unwrap();

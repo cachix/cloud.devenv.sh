@@ -6,16 +6,13 @@ module Components.OwnerRepos exposing
 
 import Api
 import Api.Data as Api
-import Auth
 import Components.Button
 import Components.GitHub
 import Components.GitHubCommit exposing (viewCommitInfo)
 import Components.Job exposing (formatJobDuration, getJobStartedAtText, getPlatformText, viewJobDetails, viewJobStatus, viewSimpleJob)
 import Components.ListTile
-import DateFormat.Relative exposing (relativeTime)
 import Html exposing (..)
 import Html.Attributes exposing (..)
-import Html.Events
 import Icons
 import RemoteData
 import Route exposing (Route)

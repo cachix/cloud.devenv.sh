@@ -20,35 +20,18 @@ pub struct Runner {
 }
 
 impl Runner {
-    pub async fn new(
-        pool: &Pool<AsyncPgConnection>,
-        platform: Platform,
-    ) -> Result<Self, diesel::result::Error> {
-        let conn = &mut pool.get().await.unwrap();
+    pub async fn new(pool: &Pool<AsyncPgConnection>, platform: Platform) -> Result<Self> {
+        let mut conn = pool.get().await?;
         let runner = diesel::insert_into(runners::table)
             .values((
                 runners::id.eq(Uuid::now_v7()),
                 runners::last_seen_at.eq(chrono::Utc::now()),
                 runners::platform.eq(platform),
             ))
-            .get_result(conn)
+            .get_result(&mut conn)
             .await?;
 
         Ok(runner)
-    }
-
-    pub async fn disconnected(
-        runner_id: Uuid,
-        pool: &Pool<AsyncPgConnection>,
-    ) -> Result<(), diesel::result::Error> {
-        let conn = &mut pool.get().await.unwrap();
-        diesel::update(runners::table)
-            .filter(runners::id.eq(runner_id))
-            .set(runners::last_seen_at.eq(chrono::Utc::now()))
-            .execute(conn)
-            .await?;
-
-        Ok(())
     }
 
     pub async fn get_platform(

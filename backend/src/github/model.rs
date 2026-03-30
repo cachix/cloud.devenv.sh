@@ -253,12 +253,6 @@ impl GitHubCommit {
         conn: &mut diesel_async::AsyncPgConnection,
         id: uuid::Uuid,
     ) -> crate::error::Result<Self> {
-        use crate::schema::github_commit;
-        use diesel::ExpressionMethods;
-        use diesel::QueryDsl;
-        use diesel::SelectableHelper;
-        use diesel_async::RunQueryDsl;
-
         let commit = github_commit::table
             .filter(github_commit::id.eq(id))
             .select(GitHubCommit::as_select())
@@ -513,8 +507,6 @@ impl JobGitHub {
         conn: &mut diesel_async::AsyncPgConnection,
         job: &crate::job::model::Job,
     ) -> Result<Self> {
-        use diesel_async::RunQueryDsl;
-
         jobs_github::table
             .filter(jobs_github::job_id.eq(job.id))
             .first::<Self>(conn)
@@ -615,9 +607,6 @@ impl SourceControlIntegration for JobGitHub {
         conn: &mut diesel_async::AsyncPgConnection,
         id: uuid::Uuid,
     ) -> Result<Self> {
-        use crate::schema::jobs_github;
-        use diesel_async::RunQueryDsl;
-
         // Get the GitHub job directly from the database
         let job_github = jobs_github::table
             .filter(jobs_github::job_id.eq(id))
@@ -704,16 +693,7 @@ impl SourceControlIntegration for JobGitHub {
     ) -> Result<Self> {
         let conn = &mut app_state.pool.get().await?;
 
-        // Convert VM config platform to job platform
-        // Get platform enum for job creation and formatting
-        let job_platform = match vm_config.platform {
-            devenv_runner::protocol::Platform::X86_64Linux => {
-                crate::job::model::Platform::X86_64Linux
-            }
-            devenv_runner::protocol::Platform::AArch64Darwin => {
-                crate::job::model::Platform::AArch64Darwin
-            }
-        };
+        let job_platform: crate::job::model::Platform = vm_config.platform.into();
 
         // Create job with specified VM configuration
         let job = Job::new(

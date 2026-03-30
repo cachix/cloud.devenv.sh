@@ -1,11 +1,12 @@
-use diesel::prelude::*;
 use serde::Serialize;
 use utoipa::ToSchema;
 
-use crate::schema::accounts;
-
-#[derive(Queryable, Selectable, Debug, Serialize, ToSchema)]
-#[diesel(table_name = accounts)]
-pub struct Account {
-    pub id: uuid::Uuid,
+#[derive(Debug, Serialize, ToSchema)]
+pub struct AccountResponse {
+    pub user_id: String,
+    pub username: Option<String>,
+    pub name: Option<String>,
+    pub email: Option<String>,
+    pub avatar_url: Option<String>,
+    pub beta_access: bool,
 }

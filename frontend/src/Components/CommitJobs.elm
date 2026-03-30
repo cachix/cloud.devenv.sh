@@ -3,7 +3,6 @@ module Components.CommitJobs exposing (Model, Msg(..), commitJobsView, init, sub
 import Api
 import Api.Data as Api
 import Api.Request.Default as Api
-import Browser.Dom as Dom
 import Components.GitHubCommit exposing (viewCommitInfo)
 import Components.Job exposing (JobViewMsg(..), viewJob)
 import Components.ListTile as ListTile
@@ -15,10 +14,8 @@ import Html.Attributes exposing (..)
 import Html.Lazy
 import Ports
 import RemoteData exposing (WebData)
-import Route
 import Route.Path
 import Shared
-import Task
 import Time
 import Uuid
 import WebData

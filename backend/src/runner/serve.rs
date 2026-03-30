@@ -42,14 +42,10 @@ impl RunnerState {
 
     // Try to send a message to a runner
     pub async fn try_send_to(&self, runner_id: &uuid::Uuid, msg: ServerMessage) -> bool {
-        let mut success = false;
-        let mut runners = self.runners.write().await;
-
-        if let Some(tx) = runners.get_mut(runner_id) {
-            success = tx.try_send(msg).is_ok();
-        }
-
-        success
+        let runners = self.runners.read().await;
+        runners
+            .get(runner_id)
+            .map_or(false, |tx| tx.try_send(msg).is_ok())
     }
 
     /// Create a ServerMessage::NewJobAvailable from a Job
@@ -164,14 +160,13 @@ async fn handler(
         .unwrap_or(crate::job::model::Platform::X86_64Linux);
 
     // Create a new runner with the platform information
-    let runner_result = Runner::new(&app_state.pool, platform).await;
-
-    if let Err(e) = runner_result {
-        tracing::error!("Failed to create runner: {}", e);
-        return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
-    }
-
-    let runner = runner_result.unwrap();
+    let runner = match Runner::new(&app_state.pool, platform).await {
+        Ok(runner) => runner,
+        Err(e) => {
+            tracing::error!("Failed to create runner: {}", e);
+            return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
     let runner_id = runner.id;
     tracing::debug!(
         "Created runner {} with platform {}",
@@ -207,7 +202,11 @@ async fn spawn_runner(
                     Some(Ok(Message::Item(client_msg))) => {
                         match client_msg {
                             ClientMessage::ClaimJob { id, vm } => {
-                                let conn = &mut app_state.pool.get().await.unwrap();
+                                let Ok(mut conn) = app_state.pool.get().await else {
+                                    tracing::error!("Failed to get database connection for job claim");
+                                    continue;
+                                };
+                                let conn = &mut conn;
                                 tracing::info!("Runner {} claiming job {}", runner_id, id);
                                 let rows = Job::claim_job_for_runner(conn, id, runner_id)
                                     .await
@@ -235,7 +234,11 @@ async fn spawn_runner(
                             }
                             ClientMessage::UpdateJobStatus { id, status } => {
                                 // TODO: authorize job_id against runner
-                                let conn = &mut app_state.pool.get().await.unwrap();
+                                let Ok(mut conn) = app_state.pool.get().await else {
+                                    tracing::error!("Failed to get database connection for status update");
+                                    continue;
+                                };
+                                let conn = &mut conn;
                                 Job::update_job_status(conn, id, &JobStatus(status.clone()))
                                     .await
                                     .ok();
@@ -312,15 +315,18 @@ async fn check_and_send_job(
     runner_id: &uuid::Uuid,
 ) -> bool {
     // Get the runner's platform
-    let conn = &mut app_state.pool.get().await.unwrap();
-    let runner_platform_result = Runner::get_platform(conn, runner_id).await;
-
-    if let Err(e) = runner_platform_result {
-        tracing::error!("Failed to get runner platform: {}", e);
+    let Ok(mut conn) = app_state.pool.get().await else {
+        tracing::error!("Failed to get database connection for job check");
         return false;
-    }
-
-    let runner_platform_str = runner_platform_result.unwrap();
+    };
+    let conn = &mut conn;
+    let runner_platform_str = match Runner::get_platform(conn, runner_id).await {
+        Ok(platform) => platform,
+        Err(e) => {
+            tracing::error!("Failed to get runner platform: {}", e);
+            return false;
+        }
+    };
     // Parse the platform string to our Platform type
     let runner_platform = runner_platform_str
         .parse()
@@ -359,7 +365,11 @@ async fn job_timeout_checker(app_state: AppState, runner_state: RunnerState) {
         let timeout_seconds = app_state.config.job.timeout_seconds;
 
         // Find jobs that have exceeded their timeout
-        let conn = &mut app_state.pool.get().await.unwrap();
+        let Ok(mut conn) = app_state.pool.get().await else {
+            tracing::error!("Failed to get database connection for timeout check");
+            continue;
+        };
+        let conn = &mut conn;
         let expired_jobs_result = Job::find_expired_jobs(conn, timeout_seconds).await;
 
         if let Ok(expired_jobs) = expired_jobs_result {
@@ -379,9 +389,15 @@ async fn job_timeout_checker(app_state: AppState, runner_state: RunnerState) {
 
                         // If we can't reach the runner, update the job status directly
                         let mut job_clone = job.clone();
+                        let Ok(mut timeout_conn) = app_state.pool.get().await else {
+                            tracing::error!(
+                                "Failed to get database connection for job timeout update"
+                            );
+                            continue;
+                        };
                         if let Err(e) = job_clone
                             .complete(
-                                &mut app_state.pool.get().await.unwrap(),
+                                &mut timeout_conn,
                                 devenv_runner::protocol::CompletionStatus::TimedOut,
                             )
                             .await

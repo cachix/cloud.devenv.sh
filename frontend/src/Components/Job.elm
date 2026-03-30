@@ -10,7 +10,6 @@ import Html exposing (..)
 import Html.Attributes exposing (attribute, class, href, id, title)
 import Html.Events exposing (onClick)
 import Icons
-import Json.Decode as Decode
 import RemoteData exposing (WebData)
 import Route
 import Route.Path

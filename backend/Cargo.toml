@@ -19,7 +19,6 @@ color-eyre.workspace = true
 diesel.workspace = true
 diesel-async.workspace = true
 diesel_migrations.workspace = true
-digest.workspace = true
 eyre.workspace = true
 futures-util.workspace = true
 hex.workspace = true

@@ -1,5 +1,5 @@
 use crate::runner::model::Platform;
-use devenv_runner::protocol::{Platform as RunnerPlatform, VM};
+use devenv_runner::protocol::VM;
 use serde::Deserialize;
 
 /// A collection of VM configurations parsed from a devenv.yaml file.
@@ -78,14 +78,10 @@ impl FinalCloud {
                 };
 
                 // Validate platform name and convert to enum
-                let platform = match name.as_str() {
-                    "x86_64-linux" => Platform::X86_64Linux,
-                    "aarch64-darwin" => Platform::AArch64Darwin,
-                    _ => return Err(format!(
-                        "Platform '{}' is not supported. Only 'x86_64-linux' and 'aarch64-darwin' are allowed",
-                        name
-                    )),
-                };
+                let platform: Platform = name.parse().map_err(|_| format!(
+                    "Platform '{}' is not supported. Only 'x86_64-linux' and 'aarch64-darwin' are allowed",
+                    name
+                ))?;
 
                 // Get platform memory, using platform override or cloud default
                 let memory_mb = if let Some(mem_str) = memory_opt {
@@ -97,14 +93,10 @@ impl FinalCloud {
                 // Get platform CPUs, using platform override or cloud default
                 let cpus = cpus_opt.unwrap_or(cloud_cpus);
 
-                // Convert directly to VM struct
                 Ok(VM {
                     cpu_count: cpus as usize,
                     memory_size_mb: memory_mb as u64,
-                    platform: match platform {
-                        Platform::X86_64Linux => RunnerPlatform::X86_64Linux,
-                        Platform::AArch64Darwin => RunnerPlatform::AArch64Darwin,
-                    },
+                    platform: platform.into(),
                 })
             })
             .collect::<Result<Vec<VM>, String>>()?;

@@ -153,17 +153,8 @@ view props route { toContentMsg, model, content } =
 viewHeader : Props contentMsg -> Model -> Route () -> (Msg -> contentMsg) -> Html contentMsg
 viewHeader props model route toContentMsg =
     let
-        navButton title to =
-            a
-                [ class "app-link hover:cursor-pointer"
-                , classList [ ( "font-black", to == route.url.path ) ]
-                , href to
-                ]
-                [ text title ]
-
         navigation =
-            [-- navButton "Dashboard" (Route.Path.toString Route.Path.Home_)
-            ]
+            []
 
         guestButtons =
             case route.path of

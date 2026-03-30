@@ -4,7 +4,6 @@ import Api
 import Api.Data as Api
 import Api.Request.Default as Api
 import Auth
-import Browser.Dom as Dom
 import Components.Breadcrumbs exposing (Breadcrumbs)
 import Components.Button as Button
 import Components.CommitJobs
@@ -13,16 +12,12 @@ import Dict
 import Effect exposing (Effect)
 import Html exposing (..)
 import Html.Attributes exposing (..)
-import Http
-import Json.Decode as Decode exposing (Decoder)
 import Layouts
 import Page exposing (Page)
-import Process
 import RemoteData exposing (WebData)
 import Route exposing (Route)
 import Route.Path
 import Shared
-import Task
 import Time exposing (millisToPosix)
 import Uuid exposing (Uuid)
 import View exposing (View)
@@ -79,8 +74,6 @@ type Msg
     = RepoJobsResponse (WebData Api.RepoJobs)
     | Refresh
     | CommitJobsMsg Components.CommitJobs.Msg
-    | ScrollComplete -- When scrolling to an element is complete
-    | ScrollFailed -- When scrolling to an element fails
 
 
 update : Msg -> Model -> ( Model, Effect Msg )
@@ -98,14 +91,6 @@ update msg model =
             -- Don't clear existing view states or target job ID when refreshing
             -- This keeps the UI state stable between refreshes
             ( model, getJobsForRepo model.owner model.repo )
-
-        ScrollComplete ->
-            -- We've successfully scrolled to the element
-            ( model, Effect.none )
-
-        ScrollFailed ->
-            -- Scrolling failed, but we can continue
-            ( model, Effect.none )
 
         CommitJobsMsg subMsg ->
             let
@@ -167,35 +152,6 @@ update msg model =
                 , refreshEffect
                 ]
             )
-
-
-
--- Helper function to scroll to an element by ID with an offset
-
-
-scrollToElementEffect : String -> Effect Msg
-scrollToElementEffect elementId =
-    Effect.sendCmd
-        (Process.sleep 100
-            |> Task.andThen
-                (\_ ->
-                    Dom.getElement elementId
-                        |> Task.andThen
-                            (\elementInfo ->
-                                -- Scroll element into view with some offset from top
-                                Dom.setViewport 0 (elementInfo.element.y - 100)
-                            )
-                )
-            |> Task.attempt
-                (\result ->
-                    case result of
-                        Ok _ ->
-                            ScrollComplete
-
-                        Err _ ->
-                            ScrollFailed
-                )
-        )
 
 
 subscriptions : Model -> Sub Msg

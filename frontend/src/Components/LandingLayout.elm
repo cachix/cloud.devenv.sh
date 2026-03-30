@@ -80,23 +80,6 @@ viewHeader { onSignIn, onToggleTheme, theme, user, route } =
                 _ ->
                     -- Show login buttons for logged-out users
                     div [] []
-
-        {-
-           div [ class "flex gap-4" ]
-               [ Components.Button.new
-                   { label = "Log in"
-                   , icon = Nothing
-                   , action = Components.Button.Click onSignIn
-                   }
-                   |> Components.Button.view
-               , Components.Button.new
-                   { label = "Sign up"
-                   , icon = Nothing
-                   , action = Components.Button.Click onSignIn
-                   }
-                   |> Components.Button.view
-               ]
-        -}
     in
     nav
         [ class "container max-w-4xl p-4 text-secondary font-semibold flex flex-wrap items-center justify-between mx-auto dark:text-dark-text-secondary"

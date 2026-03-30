@@ -81,7 +81,10 @@ async fn cancel_job(
     State(app_state): State<AppState>,
     Path(id): Path<uuid::Uuid>,
 ) -> impl IntoResponse {
-    let conn = &mut app_state.pool.get().await.unwrap();
+    let Ok(mut conn) = app_state.pool.get().await else {
+        return StatusCode::INTERNAL_SERVER_ERROR;
+    };
+    let conn = &mut conn;
 
     // Use the model's cancel method which handles locking and race conditions
     match model::Job::cancel(conn, id).await {

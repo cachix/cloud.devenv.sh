@@ -1,37 +1,31 @@
 use crate::auth::BetaUser;
 use crate::config::AppState;
 use crate::error::Result;
-use axum::{Json, extract::State};
+use axum::Json;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
-use super::model::Account;
+use super::model::AccountResponse;
 
 #[utoipa::path(
     get,
     path = "/me",
     responses(
-        (status = 200, description = "Account found", body = Account),
+        (status = 200, description = "Account found", body = AccountResponse),
         (status = 404, description = "Not logged in")
     )
 )]
 #[tracing::instrument(skip_all, ret)]
-pub async fn get_account(
-    user: BetaUser,
-    State(_state): State<AppState>,
-) -> Result<Json<serde_json::Value>> {
+pub async fn get_account(user: BetaUser) -> Result<Json<AccountResponse>> {
     tracing::info!("/me for account_id={}", user.account_id);
 
-    // Return user information from local database
-    let user_info = serde_json::json!({
-        "user_id": user.account_id.to_string(),
-        "username": user.username,
-        "name": user.name,
-        "email": user.email,
-        "avatar_url": user.avatar_url,
-        "beta_access": true, // This user always has beta access since we validate it
-    });
-
-    Ok(Json(user_info))
+    Ok(Json(AccountResponse {
+        user_id: user.account_id.to_string(),
+        username: user.username,
+        name: user.name,
+        email: user.email,
+        avatar_url: user.avatar_url,
+        beta_access: true,
+    }))
 }
 
 pub fn router() -> OpenApiRouter<AppState> {
