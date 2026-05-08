@@ -49,7 +49,7 @@ impl PostgresUserStore {
     async fn conn(
         &self,
     ) -> Result<
-        diesel_async::pooled_connection::bb8::PooledConnection<'_, diesel_async::AsyncPgConnection>,
+        diesel_async::pooled_connection::deadpool::Object<diesel_async::AsyncPgConnection>,
         PostgresStoreError,
     > {
         self.pool
