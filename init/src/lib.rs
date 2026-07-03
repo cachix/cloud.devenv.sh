@@ -185,6 +185,65 @@ pub fn mount_root_filesystem() -> Result<()> {
     }
 }
 
+/// Block device carrying the read-only erofs nix store image
+const STORE_DEVICE: &str = "/dev/vda";
+
+/// Assemble the guest nix store: the read-only erofs image on virtio-blk
+/// becomes the lower layer of an overlay, with a tmpfs upper for job writes,
+/// merged at NEW_ROOT/nix/store. The image bakes devenv (1000:100) ownership,
+/// so no recursive chown of the store is needed at boot.
+pub fn mount_store_overlay() -> Result<()> {
+    let ro_store = format!("{NEW_ROOT}/nix/.ro-store");
+    let rw_store = format!("{NEW_ROOT}/nix/.rw-store");
+    let merged = format!("{NEW_ROOT}/nix/store");
+
+    for dir in [&ro_store, &rw_store, &merged] {
+        std::fs::create_dir_all(dir)?;
+    }
+
+    // The virtio-blk device probes concurrently with early boot; wait
+    // briefly for it to appear.
+    let device = std::path::Path::new(STORE_DEVICE);
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    while !device.exists() {
+        if std::time::Instant::now() > deadline {
+            return Err(eyre!("Store device {} did not appear", STORE_DEVICE));
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+
+    info!("Mounting erofs store image from {}", STORE_DEVICE);
+    mount::mount(
+        Some(STORE_DEVICE),
+        ro_store.as_str(),
+        Some("erofs"),
+        MsFlags::MS_RDONLY,
+        None::<&str>,
+    )
+    .map_err(|e| eyre!("Failed to mount erofs store image: {}", e))?;
+
+    // Upper layer for store writes during the job. tmpfs, so large build
+    // outputs consume guest RAM; sized to leave room for the job itself.
+    mount_filesystem("tmpfs", &rw_store, "tmpfs", &["size=75%"])?;
+
+    let upper = format!("{rw_store}/upper");
+    let work = format!("{rw_store}/work");
+    std::fs::create_dir_all(&upper)?;
+    std::fs::create_dir_all(&work)?;
+
+    info!("Mounting nix store overlay at {}", merged);
+    mount::mount(
+        Some("overlay"),
+        merged.as_str(),
+        Some("overlay"),
+        MsFlags::empty(),
+        Some(format!("lowerdir={ro_store},upperdir={upper},workdir={work}").as_str()),
+    )
+    .map_err(|e| eyre!("Failed to mount nix store overlay: {}", e))?;
+
+    Ok(())
+}
+
 /// Use chroot to switch to the mounted devenv root filesystem
 pub fn pivot_to_devenv_root() -> Result<()> {
     // Check that the new root target exists

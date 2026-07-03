@@ -108,6 +108,19 @@ let
   # Create closure info for store paths
   sdClosureInfo = pkgs.buildPackages.closureInfo { rootPaths = storePaths ++ [ devenv-nix ]; };
 
+  # Read-only erofs image of the guest nix store, attached as a virtio-blk
+  # disk and mounted as the lower layer of an overlay in the guest. Baking
+  # ownership as devenv (1000:100) removes the recursive chown the driver
+  # would otherwise pay over 10k files at boot. One image file also means
+  # every VM on a host shares the same host page cache.
+  storeImage = pkgs.runCommand "store-image-erofs" {
+    nativeBuildInputs = [ pkgs.erofs-utils ];
+  } ''
+    mkdir -p $out
+    mkfs.erofs -T0 --force-uid=1000 --force-gid=100 \
+      $out/store.erofs ${nixStoreImage}/nix/store
+  '';
+
   # Create a pre-built nix store directory with all required store paths
   nixStoreImage = pkgs.runCommand "nix-store-image" { } ''
     mkdir -p $out/nix/store
@@ -194,6 +207,11 @@ let
       IMA = lib.mkForce no;
       INTEGRITY = lib.mkForce no;
 
+      # The guest nix store is an erofs image on virtio-blk with a tmpfs
+      # overlay for job writes.
+      EROFS_FS = yes;
+      OVERLAY_FS = yes;
+
       # The guest console is virtio (hvc0); drop the legacy UART driver.
       SERIAL_8250 = lib.mkForce no;
       # Skip the boot-time W+X page table diagnostic scan.
@@ -222,7 +240,7 @@ let
     ${pkgs.binutils-unwrapped}/bin/strip --strip-debug -o $out/vmlinux ${kernel.dev}/vmlinux
     cp ${customInitrd}/initrd $out/initrd
     ln -s ${rootfs} $out/rootfs
-    ln -s ${nixStoreImage} $out/nix-store-image
+    ln -s ${storeImage}/store.erofs $out/store.erofs
   '';
 
 in

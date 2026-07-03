@@ -5,8 +5,8 @@ mod linux {
     use clap::Parser;
     use color_eyre::eyre::Result;
     use devenv_init::{
-        mount_essential_filesystems, mount_root_filesystem, pivot_to_devenv_root, set_hostname,
-        NEW_ROOT,
+        mount_essential_filesystems, mount_root_filesystem, mount_store_overlay,
+        pivot_to_devenv_root, set_hostname, NEW_ROOT,
     };
     use tracing::{error, info};
     use tracing_subscriber::prelude::*;
@@ -68,6 +68,12 @@ mod linux {
         info!("Mounting root filesystem with /mnt");
         if let Err(e) = mount_root_filesystem() {
             error!("Failed to mount root filesystem with devenv-driver: {}", e);
+            return Err(e);
+        }
+
+        // Assemble /nix/store from the erofs image and a tmpfs overlay
+        if let Err(e) = mount_store_overlay() {
+            error!("Failed to mount nix store overlay: {}", e);
             return Err(e);
         }
 
