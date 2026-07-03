@@ -279,7 +279,7 @@ impl Vm for LinuxVm {
                 kernel: Some(resources.kernel_path.to_str().unwrap().to_string()),
                 initramfs: Some(resources.initrd_path.to_str().unwrap().to_string()),
                 cmdline: Some(format!(
-                    "console=hvc0 quiet rootfstype=virtiofs root=rootfs ip={}::{}:{}::eth0:off",
+                    "console=hvc0 quiet mitigations=off tsc=reliable 8250.nr_uarts=0 random.trust_cpu=on init_on_alloc=0 pci=lastbus=0 rootfstype=virtiofs root=rootfs ip={}::{}:{}::eth0:off",
                     guest_ip,
                     VM_GATEWAY_IP.to_string(),
                     VM_SUBNET_MASK
