@@ -193,6 +193,24 @@ let
       AGP = lib.mkForce no;
       IMA = lib.mkForce no;
       INTEGRITY = lib.mkForce no;
+
+      # The guest console is virtio (hvc0); drop the legacy UART driver.
+      SERIAL_8250 = lib.mkForce no;
+      # Skip the boot-time W+X page table diagnostic scan.
+      DEBUG_WX = lib.mkForce no;
+      # Skip crypto algorithm self-tests during boot registration.
+      CRYPTO_MANAGER_DISABLE_TESTS = lib.mkForce yes;
+      # The root is virtiofs and there are no block devices; drop disk
+      # filesystems that kernelPreferBuiltin would otherwise build in.
+      BTRFS_FS = lib.mkForce no;
+      XFS_FS = lib.mkForce no;
+      F2FS_FS = lib.mkForce no;
+      NTFS3_FS = lib.mkForce no;
+      OCFS2_FS = lib.mkForce no;
+      GFS2_FS = lib.mkForce no;
+      NILFS2_FS = lib.mkForce no;
+      JFS_FS = lib.mkForce no;
+      NETWORK_FILESYSTEMS = lib.mkForce no;
     };
   });
 
