@@ -225,7 +225,7 @@ impl Vm for LinuxVm {
         // Wait for virtiofsd socket to be created
         let virtiofs_socket_path_clone = virtiofs_socket_path.clone();
         while !virtiofs_socket_path_clone.exists() {
-            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
         }
 
         // Create API client
@@ -279,7 +279,7 @@ impl Vm for LinuxVm {
                 kernel: Some(resources.kernel_path.to_str().unwrap().to_string()),
                 initramfs: Some(resources.initrd_path.to_str().unwrap().to_string()),
                 cmdline: Some(format!(
-                    "console=hvc0 rootfstype=virtiofs root=rootfs ip={}::{}:{}::eth0:off",
+                    "console=hvc0 quiet rootfstype=virtiofs root=rootfs ip={}::{}:{}::eth0:off",
                     guest_ip,
                     VM_GATEWAY_IP.to_string(),
                     VM_SUBNET_MASK
@@ -387,13 +387,12 @@ impl Vm for LinuxVm {
             // Check process status
             match self.process.try_wait() {
                 Ok(Some(status)) => {
-                    let exit_code = status.code().unwrap_or(1);
-
-                    // Determine exit status: prioritize job result over exit code
+                    // The Complete message from the guest is the only source of
+                    // truth for job success. A VM that exits without reporting a
+                    // result (e.g. the driver died and init powered off the VM)
+                    // is a failure even if the VMM process exited cleanly.
                     let exit_status = match job_result {
                         Some(true) => crate::vm::VmExitStatus::Success,
-                        Some(false) => crate::vm::VmExitStatus::Failure,
-                        None if exit_code == 0 => crate::vm::VmExitStatus::Success,
                         _ => crate::vm::VmExitStatus::Failure,
                     };
 
