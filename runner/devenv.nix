@@ -169,6 +169,30 @@ let
       VSOCKETS = yes;
       VIRTIO_VSOCKETS = yes;
       VIRTIO_VSOCKETS_COMMON = yes;
+
+      # The VM boots a kernel directly with a virtiofs root and virtio
+      # devices only. kernelPreferBuiltin turns the distro config's module
+      # drivers into built-ins that register on every boot, so drop the
+      # hardware subsystems this VM can never see to cut boot time and
+      # kernel size.
+      DRM = lib.mkForce no;
+      SOUND = lib.mkForce no;
+      USB_SUPPORT = lib.mkForce no;
+      HID_SUPPORT = lib.mkForce no;
+      WLAN = lib.mkForce no;
+      WIRELESS = lib.mkForce no;
+      CFG80211 = lib.mkForce no;
+      BT = lib.mkForce no;
+      NFC = lib.mkForce no;
+      ETHERNET = lib.mkForce no;
+      HYPERV = lib.mkForce no;
+      INFINIBAND = lib.mkForce no;
+      SCSI = lib.mkForce no;
+      ATA = lib.mkForce no;
+      MD = lib.mkForce no;
+      AGP = lib.mkForce no;
+      IMA = lib.mkForce no;
+      INTEGRITY = lib.mkForce no;
     };
   });
 
