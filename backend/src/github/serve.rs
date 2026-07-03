@@ -23,7 +23,7 @@ fn extract_full_account(installation: EventInstallation) -> Result<octocrab::mod
     match installation {
         EventInstallation::Full(inst) => Ok(inst.account),
         EventInstallation::Minimal(_) => {
-            Err(eyre!("Expected full installation payload but got minimal"))
+            Err(eyre!("Expected full installation payload but got minimal").into())
         }
     }
 }

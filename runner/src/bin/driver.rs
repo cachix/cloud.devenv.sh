@@ -100,15 +100,32 @@ async fn main() -> Result<()> {
         std::fs::create_dir_all("/nix/var/nix/temproots")?;
         std::fs::create_dir_all("/nix/var/log/nix")?;
 
-        // Change ownership of /nix to devenv user before loading database
+        // The store is an erofs image with devenv (1000:100) ownership baked
+        // in, behind an overlay; only /nix/var and the top-level directories
+        // need fixing up. Recursing into /nix/store would copy up overlay
+        // metadata for every store file.
         let output = std::process::Command::new("chown")
-            .args(["-R", "1000:100", "/nix"])
+            .args(["-R", "1000:100", "/nix/var"])
             .output()
-            .wrap_err("Failed to change ownership of /nix")?;
+            .wrap_err("Failed to change ownership of /nix/var")?;
 
         if !output.status.success() {
             return Err(eyre!(
-                "Failed to chown /nix: {}",
+                "Failed to chown /nix/var: {}",
+                String::from_utf8_lossy(&output.stderr)
+            ));
+        }
+
+        // Non-recursive: /nix itself and the overlay root of /nix/store, so
+        // the devenv user can create new store paths during the job
+        let output = std::process::Command::new("chown")
+            .args(["1000:100", "/nix", "/nix/store"])
+            .output()
+            .wrap_err("Failed to change ownership of /nix and /nix/store")?;
+
+        if !output.status.success() {
+            return Err(eyre!(
+                "Failed to chown /nix and /nix/store: {}",
                 String::from_utf8_lossy(&output.stderr)
             ));
         }
@@ -129,15 +146,15 @@ async fn main() -> Result<()> {
             ));
         }
 
-        // Final chown to ensure devenv owns everything including the newly created database
+        // Final chown so devenv owns the newly created database
         let output = std::process::Command::new("chown")
-            .args(["-R", "1000:100", "/nix"])
+            .args(["-R", "1000:100", "/nix/var"])
             .output()
-            .wrap_err("Failed to change ownership of /nix after loading database")?;
+            .wrap_err("Failed to change ownership of /nix/var after loading database")?;
 
         if !output.status.success() {
             return Err(eyre!(
-                "Failed to chown /nix after loading database: {}",
+                "Failed to chown /nix/var after loading database: {}",
                 String::from_utf8_lossy(&output.stderr)
             ));
         }

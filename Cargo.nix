@@ -5376,10 +5376,6 @@ rec {
             features = [ "postgres" ];
           }
           {
-            name = "digest";
-            packageId = "digest";
-          }
-          {
             name = "eyre";
             packageId = "eyre";
           }
@@ -5828,7 +5824,7 @@ rec {
             name = "nix";
             packageId = "nix 0.29.0";
             target = { target, features }: ("linux" == target."os" or null);
-            features = [ "fs" "hostname" "mount" ];
+            features = [ "fs" "hostname" "mount" "process" "reboot" ];
           }
           {
             name = "tokio";
@@ -17256,7 +17252,7 @@ rec {
           "user" = [ "feature" ];
           "zerocopy" = [ "fs" "uio" ];
         };
-        resolvedDefaultFeatures = [ "default" "feature" "fs" "hostname" "mount" "process" "signal" "uio" "user" ];
+        resolvedDefaultFeatures = [ "default" "feature" "fs" "hostname" "mount" "process" "reboot" "signal" "uio" "user" ];
       };
       "nix 0.30.1" = rec {
         crateName = "nix";

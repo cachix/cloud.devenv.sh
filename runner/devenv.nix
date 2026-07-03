@@ -74,6 +74,19 @@ let
     cp ${pamSu} $out/etc/pam.d/su
   '';
 
+  # Files the dynamic linker maps when devenv-driver starts. devenv-init
+  # reads these into the guest page cache in parallel before spawning the
+  # driver; sequential reads over virtiofs are much faster than the
+  # demand-paged faults the linker would generate on its own.
+  driverPrewarmList = pkgs.runCommand "driver-prewarm-list" { } ''
+    mkdir -p $out
+    {
+      echo "${devenv-driver}/bin/devenv-driver"
+      ${pkgs.glibc.bin}/bin/ldd ${devenv-driver}/bin/devenv-driver \
+        | grep -oE '/nix/store/[^ )]+' || true
+    } | sort -u > $out/prewarm-list
+  '';
+
   # Store paths to register in VM
   storePaths = [
     pkgs.pkgsStatic.bash
@@ -81,6 +94,7 @@ let
     devenv-driver
     pkgs.dockerTools.caCertificates
     etcSetup
+    driverPrewarmList
     # networking
     pkgs.iproute2
     pkgs.dnsutils
@@ -93,6 +107,19 @@ let
 
   # Create closure info for store paths
   sdClosureInfo = pkgs.buildPackages.closureInfo { rootPaths = storePaths ++ [ devenv-nix ]; };
+
+  # Read-only erofs image of the guest nix store, attached as a virtio-blk
+  # disk and mounted as the lower layer of an overlay in the guest. Baking
+  # ownership as devenv (1000:100) removes the recursive chown the driver
+  # would otherwise pay over 10k files at boot. One image file also means
+  # every VM on a host shares the same host page cache.
+  storeImage = pkgs.runCommand "store-image-erofs" {
+    nativeBuildInputs = [ pkgs.erofs-utils ];
+  } ''
+    mkdir -p $out
+    mkfs.erofs -T0 --force-uid=1000 --force-gid=100 \
+      $out/store.erofs ${nixStoreImage}/nix/store
+  '';
 
   # Create a pre-built nix store directory with all required store paths
   nixStoreImage = pkgs.runCommand "nix-store-image" { } ''
@@ -155,15 +182,65 @@ let
       VSOCKETS = yes;
       VIRTIO_VSOCKETS = yes;
       VIRTIO_VSOCKETS_COMMON = yes;
+
+      # The VM boots a kernel directly with a virtiofs root and virtio
+      # devices only. kernelPreferBuiltin turns the distro config's module
+      # drivers into built-ins that register on every boot, so drop the
+      # hardware subsystems this VM can never see to cut boot time and
+      # kernel size.
+      DRM = lib.mkForce no;
+      SOUND = lib.mkForce no;
+      USB_SUPPORT = lib.mkForce no;
+      HID_SUPPORT = lib.mkForce no;
+      WLAN = lib.mkForce no;
+      WIRELESS = lib.mkForce no;
+      CFG80211 = lib.mkForce no;
+      BT = lib.mkForce no;
+      NFC = lib.mkForce no;
+      ETHERNET = lib.mkForce no;
+      HYPERV = lib.mkForce no;
+      INFINIBAND = lib.mkForce no;
+      SCSI = lib.mkForce no;
+      ATA = lib.mkForce no;
+      MD = lib.mkForce no;
+      AGP = lib.mkForce no;
+      IMA = lib.mkForce no;
+      INTEGRITY = lib.mkForce no;
+
+      # The guest nix store is an erofs image on virtio-blk with a tmpfs
+      # overlay for job writes.
+      EROFS_FS = yes;
+      OVERLAY_FS = yes;
+
+      # The guest console is virtio (hvc0); drop the legacy UART driver.
+      SERIAL_8250 = lib.mkForce no;
+      # Skip the boot-time W+X page table diagnostic scan.
+      DEBUG_WX = lib.mkForce no;
+      # Skip crypto algorithm self-tests during boot registration.
+      CRYPTO_MANAGER_DISABLE_TESTS = lib.mkForce yes;
+      # The root is virtiofs and there are no block devices; drop disk
+      # filesystems that kernelPreferBuiltin would otherwise build in.
+      BTRFS_FS = lib.mkForce no;
+      XFS_FS = lib.mkForce no;
+      F2FS_FS = lib.mkForce no;
+      NTFS3_FS = lib.mkForce no;
+      OCFS2_FS = lib.mkForce no;
+      GFS2_FS = lib.mkForce no;
+      NILFS2_FS = lib.mkForce no;
+      JFS_FS = lib.mkForce no;
+      NETWORK_FILESYSTEMS = lib.mkForce no;
     };
   });
 
   linuxResources = pkgs.runCommand "linux-resources" { } ''
     mkdir -p $out
-    cp ${kernel}/*Image $out/vmlinux
+    # Ship the uncompressed vmlinux ELF so cloud-hypervisor boots it via
+    # the PVH entry point (CONFIG_PVH=y). The bzImage path makes the guest
+    # decompress the kernel and go through legacy setup on every boot.
+    ${pkgs.binutils-unwrapped}/bin/strip --strip-debug -o $out/vmlinux ${kernel.dev}/vmlinux
     cp ${customInitrd}/initrd $out/initrd
     ln -s ${rootfs} $out/rootfs
-    ln -s ${nixStoreImage} $out/nix-store-image
+    ln -s ${storeImage}/store.erofs $out/store.erofs
   '';
 
 in

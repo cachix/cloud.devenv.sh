@@ -7,8 +7,8 @@ use cloud_hypervisor_client::apis::client::APIClient;
 use cloud_hypervisor_client::apis::configuration::Configuration;
 use cloud_hypervisor_client::models::console_config::Mode;
 use cloud_hypervisor_client::models::{
-    ConsoleConfig, CpusConfig, FsConfig, MemoryConfig, NetConfig, PayloadConfig, VmConfig,
-    VsockConfig,
+    ConsoleConfig, CpusConfig, DiskConfig, FsConfig, MemoryConfig, NetConfig, PayloadConfig,
+    VmConfig, VsockConfig,
 };
 use eyre::{Result, WrapErr};
 use fs_extra::dir::{self, CopyOptions};
@@ -25,6 +25,8 @@ use super::linux_networking::{VM_GATEWAY_IP, VM_SUBNET_MASK};
 pub struct VmResources {
     pub kernel_path: PathBuf,
     pub initrd_path: PathBuf,
+    /// Read-only erofs image of the nix store, attached as a virtio-blk disk
+    pub store_image_path: PathBuf,
 }
 
 /// Linux implementation of VM provider
@@ -124,6 +126,7 @@ impl Vm for LinuxVm {
         let resources = VmResources {
             kernel_path: config.resources_dir.join("vmlinux"),
             initrd_path: config.resources_dir.join("initrd"),
+            store_image_path: config.resources_dir.join("store.erofs"),
         };
 
         // Create VM storage directory
@@ -132,52 +135,21 @@ impl Vm for LinuxVm {
 
         let vm_rootfs_dir = vm_storage_base.join(&id);
         create_dir_all(&vm_rootfs_dir).wrap_err("Failed to create VM rootfs directory")?;
-        let nix_store_dir = vm_rootfs_dir.join("nix").join("store");
 
         // Use rootfs directory from resources
         let rootfs_dir = config.resources_dir.join("rootfs");
 
         tracing::info!("Preparing VM rootfs directory {}", vm_rootfs_dir.display());
 
-        // Copy rootfs to VM directory
+        // Copy the small rootfs (symlink farm, /etc, /registration) to a
+        // per-VM writable directory shared over virtiofs. The nix store is no
+        // longer copied here: it is a read-only erofs image attached as a
+        // virtio-blk disk and overlaid in the guest, so per-VM prep is O(1).
         let mut copy_options = CopyOptions::new();
         copy_options.content_only = true;
 
         dir::copy(&rootfs_dir, &vm_rootfs_dir, &copy_options)
             .wrap_err("Failed to copy rootfs directory to VM rootfs dir")?;
-
-        // Get the path to the pre-built nix store image
-        let nix_store_image_path = config.resources_dir.join("nix-store-image");
-        let nix_store_source = nix_store_image_path.join("nix/store");
-
-        // Create the nix directory structure
-        create_dir_all(&nix_store_dir).wrap_err("Failed to create nix store directory")?;
-
-        // Copy the pre-built nix store to the shared directory
-        tracing::info!(
-            "Copying pre-built Nix store from {:?} to {:?}",
-            nix_store_source,
-            nix_store_dir
-        );
-
-        // Copy all contents from the pre-built store
-        let output = std::process::Command::new("sh")
-            .arg("-c")
-            .arg(format!(
-                "cp -r --no-dereference --preserve=all {}/* {}",
-                nix_store_source.display(),
-                nix_store_dir.display()
-            ))
-            .output()
-            .wrap_err("Failed to copy pre-built nix store")?;
-
-        if !output.status.success() {
-            return Err(eyre::eyre!(
-                "Failed to copy pre-built nix store: cp failed with status {}\nstderr: {}",
-                output.status,
-                String::from_utf8_lossy(&output.stderr)
-            ));
-        }
 
         // Set up the virtiofsd socket
         let virtiofs_socket_path = run_dir.join("virtiofs.sock");
@@ -225,7 +197,7 @@ impl Vm for LinuxVm {
         // Wait for virtiofsd socket to be created
         let virtiofs_socket_path_clone = virtiofs_socket_path.clone();
         while !virtiofs_socket_path_clone.exists() {
-            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
         }
 
         // Create API client
@@ -279,7 +251,7 @@ impl Vm for LinuxVm {
                 kernel: Some(resources.kernel_path.to_str().unwrap().to_string()),
                 initramfs: Some(resources.initrd_path.to_str().unwrap().to_string()),
                 cmdline: Some(format!(
-                    "console=hvc0 rootfstype=virtiofs root=rootfs ip={}::{}:{}::eth0:off",
+                    "console=hvc0 quiet mitigations=off tsc=reliable 8250.nr_uarts=0 random.trust_cpu=on init_on_alloc=0 pci=lastbus=0 rootfstype=virtiofs root=rootfs ip={}::{}:{}::eth0:off",
                     guest_ip,
                     VM_GATEWAY_IP.to_string(),
                     VM_SUBNET_MASK
@@ -294,7 +266,16 @@ impl Vm for LinuxVm {
                 queue_size: 1024,
                 ..Default::default()
             }]),
-            disks: None, // Using virtiofs instead of disk
+            // Read-only erofs nix store image as the first virtio-blk disk
+            // (/dev/vda in the guest). The small mutable rootfs stays on
+            // virtiofs; only the large, immutable store is a disk.
+            disks: Some(vec![DiskConfig {
+                path: resources.store_image_path.to_str().unwrap().to_string(),
+                readonly: Some(true),
+                num_queues: Some(vm_config.cpu_count as i32),
+                queue_size: Some(1024),
+                ..Default::default()
+            }]),
             net: Some(vec![NetConfig {
                 tap: None, // Let cloud-hypervisor create and manage the TAP device
                 ip: Some(VM_GATEWAY_IP.to_string()),
@@ -387,13 +368,12 @@ impl Vm for LinuxVm {
             // Check process status
             match self.process.try_wait() {
                 Ok(Some(status)) => {
-                    let exit_code = status.code().unwrap_or(1);
-
-                    // Determine exit status: prioritize job result over exit code
+                    // The Complete message from the guest is the only source of
+                    // truth for job success. A VM that exits without reporting a
+                    // result (e.g. the driver died and init powered off the VM)
+                    // is a failure even if the VMM process exited cleanly.
                     let exit_status = match job_result {
                         Some(true) => crate::vm::VmExitStatus::Success,
-                        Some(false) => crate::vm::VmExitStatus::Failure,
-                        None if exit_code == 0 => crate::vm::VmExitStatus::Success,
                         _ => crate::vm::VmExitStatus::Failure,
                     };
 
