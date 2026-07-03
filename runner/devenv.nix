@@ -216,7 +216,10 @@ let
 
   linuxResources = pkgs.runCommand "linux-resources" { } ''
     mkdir -p $out
-    cp ${kernel}/*Image $out/vmlinux
+    # Ship the uncompressed vmlinux ELF so cloud-hypervisor boots it via
+    # the PVH entry point (CONFIG_PVH=y). The bzImage path makes the guest
+    # decompress the kernel and go through legacy setup on every boot.
+    ${pkgs.binutils-unwrapped}/bin/strip --strip-debug -o $out/vmlinux ${kernel.dev}/vmlinux
     cp ${customInitrd}/initrd $out/initrd
     ln -s ${rootfs} $out/rootfs
     ln -s ${nixStoreImage} $out/nix-store-image
