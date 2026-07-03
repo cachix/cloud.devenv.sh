@@ -5376,10 +5376,6 @@ rec {
             features = [ "postgres" ];
           }
           {
-            name = "digest";
-            packageId = "digest";
-          }
-          {
             name = "eyre";
             packageId = "eyre";
           }
