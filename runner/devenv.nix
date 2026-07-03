@@ -74,6 +74,19 @@ let
     cp ${pamSu} $out/etc/pam.d/su
   '';
 
+  # Files the dynamic linker maps when devenv-driver starts. devenv-init
+  # reads these into the guest page cache in parallel before spawning the
+  # driver; sequential reads over virtiofs are much faster than the
+  # demand-paged faults the linker would generate on its own.
+  driverPrewarmList = pkgs.runCommand "driver-prewarm-list" { } ''
+    mkdir -p $out
+    {
+      echo "${devenv-driver}/bin/devenv-driver"
+      ${pkgs.glibc.bin}/bin/ldd ${devenv-driver}/bin/devenv-driver \
+        | grep -oE '/nix/store/[^ )]+' || true
+    } | sort -u > $out/prewarm-list
+  '';
+
   # Store paths to register in VM
   storePaths = [
     pkgs.pkgsStatic.bash
@@ -81,6 +94,7 @@ let
     devenv-driver
     pkgs.dockerTools.caCertificates
     etcSetup
+    driverPrewarmList
     # networking
     pkgs.iproute2
     pkgs.dnsutils

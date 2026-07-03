@@ -84,6 +84,12 @@ mod linux {
 
         info!("Successfully switched to new root filesystem");
 
+        // Warm the guest page cache for the driver binary and its shared
+        // libraries. Sequential reads over virtiofs are much faster than the
+        // demand-paged faults the dynamic linker generates on its own; the
+        // reads race the driver startup below, so the threads are not joined.
+        prewarm_driver_files("/prewarm-list");
+
         // Run devenv-driver as a child while init remains PID 1. Staying PID 1
         // keeps the pid1 crate inside the driver a no-op, avoiding a re-exec
         // of the large driver binary, and leaves a root process around to reap
@@ -116,6 +122,33 @@ mod linux {
                     halt_vm();
                 }
             }
+        }
+    }
+
+    /// Read the files listed in `list_path` into the page cache using a few
+    /// parallel threads. Best-effort: missing list or files are ignored.
+    fn prewarm_driver_files(list_path: &str) {
+        let Ok(list) = std::fs::read_to_string(list_path) else {
+            tracing::warn!("No prewarm list at {}, skipping prewarm", list_path);
+            return;
+        };
+
+        let paths: Vec<String> = list
+            .lines()
+            .map(str::trim)
+            .filter(|l| !l.is_empty())
+            .map(str::to_owned)
+            .collect();
+
+        const PREWARM_THREADS: usize = 8;
+        let chunk_size = paths.len().div_ceil(PREWARM_THREADS).max(1);
+        for chunk in paths.chunks(chunk_size) {
+            let chunk = chunk.to_vec();
+            std::thread::spawn(move || {
+                for path in chunk {
+                    let _ = std::fs::read(&path);
+                }
+            });
         }
     }
 
